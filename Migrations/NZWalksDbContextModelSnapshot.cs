@@ -69,6 +69,82 @@ namespace NSWalks.API.Migrations
                     b.ToTable("Regions");
                 });
 
+            modelBuilder.Entity("NSWalks.API.Models.Domain.RegionImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FileDescription")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FileExtension")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("FileSizeInBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RegionCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("RegionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RegionId");
+
+                    b.ToTable("RegionImages");
+                });
+
+            modelBuilder.Entity("NSWalks.API.Models.Domain.WalkImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FileDescription")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FileExtension")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<long>("FileSizeInBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("WalkCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("WalkId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WalkId");
+
+                    b.ToTable("WalkImages");
+                });
+
             modelBuilder.Entity("NSWalks.API.Models.Domain.Walks", b =>
                 {
                     b.Property<Guid>("Id")
@@ -125,6 +201,28 @@ namespace NSWalks.API.Migrations
                     b.ToTable("Walks");
                 });
 
+            modelBuilder.Entity("NSWalks.API.Models.Domain.RegionImage", b =>
+                {
+                    b.HasOne("NSWalks.API.Models.Domain.Region", "Region")
+                        .WithMany("Images")
+                        .HasForeignKey("RegionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Region");
+                });
+
+            modelBuilder.Entity("NSWalks.API.Models.Domain.WalkImage", b =>
+                {
+                    b.HasOne("NSWalks.API.Models.Domain.Walks", "Walk")
+                        .WithMany("Images")
+                        .HasForeignKey("WalkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Walk");
+                });
+
             modelBuilder.Entity("NSWalks.API.Models.Domain.Walks", b =>
                 {
                     b.HasOne("NSWalks.API.Models.Domain.Difficulty", "Difficulty")
@@ -151,7 +249,14 @@ namespace NSWalks.API.Migrations
 
             modelBuilder.Entity("NSWalks.API.Models.Domain.Region", b =>
                 {
+                    b.Navigation("Images");
+
                     b.Navigation("Walks");
+                });
+
+            modelBuilder.Entity("NSWalks.API.Models.Domain.Walks", b =>
+                {
+                    b.Navigation("Images");
                 });
 #pragma warning restore 612, 618
         }

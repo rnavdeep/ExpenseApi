@@ -2,8 +2,10 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using NSWalks.API.Models.Domain;
 using NSWalks.API.Models.DTO;
 using NSWalks.API.Repositories;
 
@@ -17,11 +19,15 @@ namespace NSWalks.API.Controllers
     {
         private readonly UserManager<IdentityUser> userManager;
         private readonly ITokenRepository tokenRepository;
+        private readonly IUserRepository userRepository;
+        private readonly IMapper mapper;
 
-        public AuthController(UserManager<IdentityUser> userManager, ITokenRepository tokenRepository)
+        public AuthController(UserManager<IdentityUser> userManager, ITokenRepository tokenRepository, IMapper mapper, IUserRepository userRepository)
         {
             this.userManager = userManager;
             this.tokenRepository = tokenRepository;
+            this.mapper = mapper;
+            this.userRepository = userRepository;
         }
         // POST api/Auth/Register
         [HttpPost]
@@ -44,11 +50,17 @@ namespace NSWalks.API.Controllers
                     identityResult = await userManager.AddToRolesAsync(identityUser, registerRequestDto.Roles);
                     if (identityResult.Succeeded)
                     {
-                        return Ok("User was registered, proceed with login");
+                        var userModel = mapper.Map<User>(registerRequestDto);
+                        userModel.Email = registerRequestDto.Username;
+                        var userCreated = await userRepository.CreateAsync(userModel);
+                        if (userCreated != null)
+                        {
+                            return Ok(userCreated);
+                        }
                     }
                 }
             }
-            return BadRequest("Something went wrong");
+            return BadRequest(identityResult.Errors);
         }
 
         //POST /api/Auth/Login
@@ -72,6 +84,18 @@ namespace NSWalks.API.Controllers
                         {
                             JwtToken = jwtToken
                         };
+                        // Configure cookie options
+                        var cookieOptions = new CookieOptions
+                        {
+                            HttpOnly = false,   // Prevent client-side access
+                            Secure = true,     // Send cookie only over HTTPS
+                            SameSite = SameSiteMode.Strict, // Restrict to same-site requests
+                            Expires = DateTime.UtcNow.AddHours(1) // Set cookie expiration time
+                        };
+
+                        // Add JWT token to cookies
+                        Response.Cookies.Append("jwtToken", jwtToken, cookieOptions);
+
                         return Ok(response);
 
                     }

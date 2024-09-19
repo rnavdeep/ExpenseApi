@@ -26,6 +26,10 @@
     <PackageReference Include="Serilog.AspNetCore" Version="7.0.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Versioning" Version="5.1.0" />
+    <PackageReference Include="AWSSDK.S3" Version="3.7.402.10" />
+    <PackageReference Include="AWSSDK.Core" Version="3.7.400.19" />
+    <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,6 +45,7 @@
     <None Remove="Images\RegionImages\" />
     <None Remove="Logs\" />
     <None Remove="Middlewares\" />
+    <None Remove="Images\Documents\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Models\" />
@@ -55,8 +60,10 @@
     <Folder Include="Images\RegionImages\" />
     <Folder Include="Logs\" />
     <Folder Include="Middlewares\" />
+    <Folder Include="Images\Documents\" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="WeatherForecast.cs" />
+    <Compile Remove="Controllers\ValuesController.cs" />
   </ItemGroup>
 </Project>

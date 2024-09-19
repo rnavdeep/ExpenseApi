@@ -1,4 +1,6 @@
 ﻿using System;
+using Amazon.S3;
+using Amazon.S3.Model;
 using Microsoft.EntityFrameworkCore;
 using NSWalks.API.Data;
 using NSWalks.API.Models.Domain;
@@ -10,13 +12,16 @@ namespace NSWalks.API.Repositories
         private readonly NZWalksDbContext dbContext;
         private readonly IWebHostEnvironment webHostEnvironment;
         private readonly IHttpContextAccessor httpContextAccessor;
+        private readonly IConfiguration configuration;
 
-        public ImagesRepository(IWebHostEnvironment webHostEnvironment, NZWalksDbContext dbContext, IHttpContextAccessor httpContextAccessor)
+        public ImagesRepository(IWebHostEnvironment webHostEnvironment, NZWalksDbContext dbContext, IHttpContextAccessor httpContextAccessor, IConfiguration configuration)
 		{
             this.dbContext = dbContext;
             this.webHostEnvironment = webHostEnvironment;
             this.httpContextAccessor = httpContextAccessor;
+            this.configuration = configuration;
 		}
+        #region Walk Images
         #region Walk Images
         public async Task<WalkImage?> WalkImageUpload(WalkImage walkImage)
         {
@@ -31,21 +36,44 @@ namespace NSWalks.API.Repositories
                 walkImage.WalkId = walk.Id;
                 walkImage.Walk = walk;
             }
-            //create stream and copy from walkImage file to stream
-            //uploads image to local path, image will be in Images folder in NSWalks API
+
+            // Save the file locally
             using var stream = new FileStream(localFilePath, FileMode.Create);
             await walkImage.File.CopyToAsync(stream);
-            //server/images/imageName.jpg
+
+            // Prepare S3 client
+            var s3Client = new AmazonS3Client(); // Assumes default configuration
+
+            // Retrieve the bucket name from configuration
+            var bucketName = configuration["AWS:BucketName"];
+            var key = $"WalkImages/{walkImage.FileName}{walkImage.FileExtension}";
+
+            // Upload the file to S3
+            using (var fileStream = new FileStream(localFilePath, FileMode.Open, FileAccess.Read))
+            {
+                var uploadRequest = new PutObjectRequest
+                {
+                    BucketName = bucketName,
+                    Key = key,
+                    InputStream = fileStream,
+                    ContentType = walkImage.File.ContentType // Optional: Set content type
+                };
+
+                 var response = await s3Client.PutObjectAsync(uploadRequest);
+            }
+
+            // Generate URL for the uploaded image
             var urlFilePath = $"{httpContextAccessor.HttpContext.Request.Scheme}://{httpContextAccessor.HttpContext.Request.Host}{httpContextAccessor.HttpContext.Request.PathBase}/Images/WalkImages/{walkImage.FileName}{walkImage.FileExtension}";
-            //get file from running applicaiton
             walkImage.FilePath = urlFilePath;
 
-            //add image to walkImages table
+            // Update image information in the database
             await dbContext.WalkImages.AddAsync(walkImage);
             await dbContext.SaveChangesAsync();
 
             return walkImage;
         }
+        #endregion
+
 
         public async Task<WalkImage?> WalkImageDelete(string name)
         {

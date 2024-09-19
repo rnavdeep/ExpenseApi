@@ -19,7 +19,8 @@ namespace NSWalks.API.Mappings
             CreateMap<Walks, UpdateWalkRequestDto>().ReverseMap();
             CreateMap<WalkImage, WalkImageDto>().ReverseMap();
             CreateMap<RegionImage, RegionImageDto>().ReverseMap();
-
+            CreateMap<User, RegisterRequestDto>().ReverseMap();
+            CreateMap<Document, DocumentDto>().ReverseMap();
 
         }
     }
