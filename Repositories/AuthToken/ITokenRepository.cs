@@ -1,7 +1,7 @@
 ﻿using System;
 using Microsoft.AspNetCore.Identity;
 
-namespace NSWalks.API.Repositories
+namespace NSWalks.API.Repositories.AuthToken
 {
 	public interface ITokenRepository
 	{

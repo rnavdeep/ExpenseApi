@@ -7,7 +7,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using NSWalks.API.Models.Domain;
 using NSWalks.API.Models.DTO;
-using NSWalks.API.Repositories;
+using NSWalks.API.Repositories.AuthToken;
+using NSWalks.API.Repositories.Users;
+
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 

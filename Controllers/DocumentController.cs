@@ -7,7 +7,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NSWalks.API.Models.Domain;
 using NSWalks.API.Models.DTO;
-using NSWalks.API.Repositories;
+using NSWalks.API.Repositories.Documents;
+using NSWalks.API.Repositories.Users;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -57,31 +58,31 @@ namespace NSWalks.API.Controllers
             {
                 return BadRequest("File is required.");
             }
-
-            //Username exists or not
-            var user = await userRepository.GetUserByEmail(document.UserName);
-            if(user == null)
+            try
             {
-                return StatusCode(500, "User does not exists");
+                // Call S3Service to upload file
+                var result = await documentRepository.UploadFileAsync(document, document.File);
+                if(result != null)
+                {
+                    return Ok(result.S3Url);
+
+                }
+                return BadRequest("upload failed");
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
             }
 
-            // Call S3Service to upload file
-            var result = await documentRepository.UploadFileAsync(document,document.File,user); 
-
-            if (result == null)
-            {
-                return StatusCode(500, "Error occurred while uploading the file.");
-            }
-            return Ok(result.S3Url);
 
         }
         // Download File from S3
         [Authorize]
         [HttpGet("download/{fileName}")]
-        public async Task<IActionResult> DownloadFile(string fileName, [FromForm] UserDto userDto)
+        public async Task<IActionResult> DownloadFile(string fileName)
         {
             // Call S3Service to download file
-            var filePath = await documentRepository.DownloadFileAsync(fileName,userDto);
+            var filePath = await documentRepository.DownloadFileAsync(fileName);
 
             if (filePath == null)
             {
@@ -93,6 +94,29 @@ namespace NSWalks.API.Controllers
 
             // Return the file as a download to the user
             return File(fileBytes, "application/octet-stream", fileName);
+        }
+        // Download File from S3
+        [Authorize]
+        [HttpGet("download-links")]
+        public async Task<IActionResult> GetAllDownloadableLinks()
+        {
+            // Get all download links for the current logged-in user
+            var downloadLinks = await documentRepository.GetAllDownloadableLinksAsync();
+
+            if (downloadLinks == null)
+            {
+                // Return 401 Unauthorized if no user is logged in
+                return Unauthorized("User is not logged in.");
+            }
+
+            if (downloadLinks.Count == 0)
+            {
+                // Return 404 Not Found if the user has no documents
+                return NotFound("No documents found for the user.");
+            }
+
+            // Return the list of downloadable links as a 200 OK response
+            return Ok(downloadLinks);
         }
 
     }

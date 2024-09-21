@@ -10,6 +10,8 @@ namespace NSWalks.API.Models.Domain
         public string FileName { get; set; }
         public string FileExtension { get; set; }
         public string S3Url { get; set; }
+        public string ETag { get; set; }
+        public string VersionId { get; set; }
         public long Size { get; set; }
         public DateTime UploadedAt { get; set; } = DateTime.UtcNow;
 

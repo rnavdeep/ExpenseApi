@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using NSWalks.API.Data;
 using NSWalks.API.Models.Domain;
 
-namespace NSWalks.API.Repositories
+namespace NSWalks.API.Repositories.Users
 {
 	public class UserRepository:IUserRepository
 	{

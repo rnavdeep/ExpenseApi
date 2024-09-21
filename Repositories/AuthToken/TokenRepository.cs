@@ -5,7 +5,7 @@ using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 
-namespace NSWalks.API.Repositories
+namespace NSWalks.API.Repositories.AuthToken
 {
 	public class TokenRepository:ITokenRepository
 	{

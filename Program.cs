@@ -11,11 +11,11 @@ using Microsoft.Extensions.FileProviders;
 using Serilog;
 using NSWalks.API.Middlewares;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Amazon.Extensions.NETCore.Setup;
 
-using Amazon;
 using Amazon.S3;
-using Microsoft.Extensions.DependencyInjection;
+using NSWalks.API.Repositories.Documents;
+using NSWalks.API.Repositories.Users;
+using NSWalks.API.Repositories.AuthToken;
 
 var builder = WebApplication.CreateBuilder(args);
 

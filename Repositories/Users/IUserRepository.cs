@@ -1,7 +1,7 @@
 ﻿using System;
 using NSWalks.API.Models.Domain;
 
-namespace NSWalks.API.Repositories
+namespace NSWalks.API.Repositories.Users
 {
 	public interface IUserRepository
 	{

@@ -72,7 +72,6 @@ namespace NSWalks.API.Controllers
             //convert dto to domain for database
             var difficultyDomainModel = mapper.Map<Difficulty>(difficultyDto);
 
-
             try
             {
                 //check if the code is unique or not before adding and saving changes

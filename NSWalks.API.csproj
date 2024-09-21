@@ -46,6 +46,9 @@
     <None Remove="Logs\" />
     <None Remove="Middlewares\" />
     <None Remove="Images\Documents\" />
+    <None Remove="Repositories\Documents\" />
+    <None Remove="Repositories\Users\" />
+    <None Remove="Repositories\AuthToken\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Models\" />
@@ -61,6 +64,9 @@
     <Folder Include="Logs\" />
     <Folder Include="Middlewares\" />
     <Folder Include="Images\Documents\" />
+    <Folder Include="Repositories\Documents\" />
+    <Folder Include="Repositories\Users\" />
+    <Folder Include="Repositories\AuthToken\" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="WeatherForecast.cs" />
