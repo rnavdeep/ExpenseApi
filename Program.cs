@@ -13,6 +13,8 @@ using NSWalks.API.Middlewares;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 using Amazon.S3;
+using Amazon.Textract;
+
 using NSWalks.API.Repositories.Documents;
 using NSWalks.API.Repositories.Users;
 using NSWalks.API.Repositories.AuthToken;
@@ -137,6 +139,7 @@ builder.Services.AddAuthentication(options =>
 var c = builder.Configuration.GetAWSOptions("AWS");
 builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions("AWS"));
 builder.Services.AddAWSService<IAmazonS3>();
+builder.Services.AddAWSService<IAmazonTextract>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

@@ -1,13 +1,15 @@
-﻿using System;
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Amazon.S3;
 using Amazon.S3.Model;
-using Azure.Core;
+using Amazon.Textract;
+using Amazon.Textract.Model;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Newtonsoft.Json;
 using NSWalks.API.Data;
-using NSWalks.API.Models.Domain;
 using NSWalks.API.Models.DTO;
+using Document = NSWalks.API.Models.Domain.Document;
+using Formatting = Newtonsoft.Json.Formatting;
+using S3Object = Amazon.Textract.Model.S3Object;
 
 namespace NSWalks.API.Repositories.Documents
 {
@@ -15,18 +17,20 @@ namespace NSWalks.API.Repositories.Documents
 	{
         private readonly IConfiguration configuration;
         private readonly IAmazonS3 s3Client;
-        private readonly IWebHostEnvironment webHostEnvironment;
         private readonly IHttpContextAccessor httpContextAccessor;
         private readonly UserDocumentsDbContext userDocumentsDbContext;
-        public DocumentRepository(IConfiguration configuration, IAmazonS3 amazonS3, IWebHostEnvironment webHostEnvironment, IHttpContextAccessor httpContextAccessor
-            ,UserDocumentsDbContext userDocumentsDbContext)
+        private readonly IAmazonTextract amazonTextract;
+
+        public DocumentRepository(IConfiguration configuration, IAmazonS3 amazonS3, IHttpContextAccessor httpContextAccessor
+            ,UserDocumentsDbContext userDocumentsDbContext, IAmazonTextract amazonTextract)
 		{
             this.configuration = configuration;
             this.s3Client = amazonS3;
             this.httpContextAccessor = httpContextAccessor;
-            this.webHostEnvironment = webHostEnvironment;
             this.userDocumentsDbContext = userDocumentsDbContext;
+            this.amazonTextract = amazonTextract;
 		}
+
         public async Task<GetObjectResponse?> FindDocumentS3Async(string? bucketName, string? key)
         {
             try
@@ -244,7 +248,225 @@ namespace NSWalks.API.Repositories.Documents
             return downloadLinks;
         }
 
+        public async Task<string?> StartExtractAsync(string fileName)
+        {
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+                 .FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
 
+            if (string.IsNullOrEmpty(userName))
+            {
+                // Handle the case where no user is logged in
+                return null;
+            }
+
+            // Check if the user exists in the database
+            var userFound = await userDocumentsDbContext.Users
+                                      .FirstOrDefaultAsync(u => u.Username.ToLower().Equals(userName.ToLower()));
+            //userFound--> Check if the file provided exists
+            if (userFound != null)
+            {
+                string bucketName = configuration["AWS:BucketName"];
+                string key = $"Documents/{userName}/{fileName}";
+
+                // Check if the user has the document in the database
+                var userHasDocument = await userDocumentsDbContext.Documents
+                                          .FirstOrDefaultAsync(d => d.FileName == fileName && d.UserId == userFound.Id);
+
+                if (userHasDocument != null)
+                {
+                    // Retrieve the latest version of the document from S3
+                    var listVersionsRequest = new ListVersionsRequest
+                    {
+                        BucketName = bucketName,
+                        Prefix = key,
+                    };
+
+                    var versionsResponse = await s3Client.ListVersionsAsync(listVersionsRequest);
+
+                    // Find the latest version of the file
+                    var latestVersion = versionsResponse.Versions
+                                          .Where(v => v.Key == key)
+                                          .OrderByDescending(v => v.LastModified)
+                                          .FirstOrDefault();
+
+                    if (latestVersion != null)
+                    {
+                        var request = new AnalyzeDocumentRequest
+                        {
+                            Document = new Amazon.Textract.Model.Document
+                            {
+                                S3Object = new S3Object
+                                {
+                                    Bucket = bucketName, // Just the bucket name
+                                    Name = $"Documents/{userName}/{fileName}" // Folder structure included in Name
+                                }
+                            },
+                            FeatureTypes = new List<string> {"FORMS" }
+                        };
+
+                        try
+                        {
+                            var response = await amazonTextract.AnalyzeDocumentAsync(request);
+
+                            // Prepare a structured result focusing on forms data
+                            var result = new
+                            {
+                                FormData = response.Blocks
+                                    .Where(block => block.BlockType == "KEY_VALUE_SET" && block.Confidence >= 90) // Filter for key-value sets
+                                    .Select(block => new
+                                    {
+                                        block.Id,
+                                        block.BlockType,
+                                        Relationships = block.Relationships?.Select(rel => new
+                                        {
+                                            Type = rel.Type,
+                                            Ids = rel.Ids,
+                                            RelatedBlocks = rel.Ids.Select(id => response.Blocks.FirstOrDefault(b => b.Id == id))
+                                                .Where(relatedBlock => relatedBlock != null)
+                                                .Select(relatedBlock => new
+                                                {
+                                                    relatedBlock.Id,
+                                                    relatedBlock.BlockType,
+                                                    relatedBlock.Text
+                                                })
+                                        })
+                                    })
+                                    .ToList()
+                            };
+
+                            // Serialize the result to JSON
+                            var jsonResult = JsonConvert.SerializeObject(result, Formatting.Indented);
+                            return jsonResult;
+                        }
+                        catch (AmazonTextractException textractException)
+                        {
+                            Console.WriteLine("AWS Textract Error: " + textractException.Message);
+                            throw;
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine("General Exception: " + e.Message);
+                            throw;
+                        }
+
+                    }
+                    else
+                    {
+                        throw new Exception($"Document {fileName} does not exist for {userName}");
+                    }
+                }
+                else
+                {
+                    throw new Exception($"Document {fileName} does not exist for {userName}");
+                }
+            }
+            else
+            {
+                throw new Exception($"User Not Found");
+            }
+        }
+
+        public async Task<string?> StartExpenseExtractAsync(string fileName)
+        {
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+                             .FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+
+            if (string.IsNullOrEmpty(userName))
+            {
+                // Handle the case where no user is logged in
+                return null;
+            }
+
+            // Check if the user exists in the database
+            var userFound = await userDocumentsDbContext.Users
+                                      .FirstOrDefaultAsync(u => u.Username.ToLower().Equals(userName.ToLower()));
+            //userFound--> Check if the file provided exists
+            if (userFound != null)
+            {
+                string bucketName = configuration["AWS:BucketName"];
+                string key = $"Documents/{userName}/{fileName}";
+
+                // Check if the user has the document in the database
+                var userHasDocument = await userDocumentsDbContext.Documents
+                                          .FirstOrDefaultAsync(d => d.FileName == fileName && d.UserId == userFound.Id);
+
+                if (userHasDocument != null)
+                {
+                    // Retrieve the latest version of the document from S3
+                    var listVersionsRequest = new ListVersionsRequest
+                    {
+                        BucketName = bucketName,
+                        Prefix = key,
+                    };
+
+                    var versionsResponse = await s3Client.ListVersionsAsync(listVersionsRequest);
+
+                    // Find the latest version of the file
+                    var latestVersion = versionsResponse.Versions
+                                          .Where(v => v.Key == key)
+                                          .OrderByDescending(v => v.LastModified)
+                                          .FirstOrDefault();
+
+                    if (latestVersion != null)
+                    {
+                        var request = new AnalyzeExpenseRequest
+                        {
+                            Document = new Amazon.Textract.Model.Document
+                            {
+                                S3Object = new S3Object
+                                {
+                                    Bucket = bucketName, // Just the bucket name
+                                    Name = $"Documents/{userName}/{fileName}" // Folder structure included in Name
+                                }
+                            }
+                        };
+
+                        try
+                        {
+                            var response = await amazonTextract.AnalyzeExpenseAsync(request);
+
+                            // Prepare a structured result for the expense analysis
+                            var result = new
+                            {
+                                ExpenseDocuments = response.ExpenseDocuments.Select(expenseDoc => new
+                                {
+                                    SummaryFields = expenseDoc.SummaryFields,
+                                    LineItems = expenseDoc.LineItemGroups
+                                }).ToList()
+                            };
+
+
+                            // Serialize the result to JSON
+                            var jsonResult = JsonConvert.SerializeObject(result, Formatting.Indented);
+                            return jsonResult;
+                        }
+                        catch (AmazonTextractException textractException)
+                        {
+                            Console.WriteLine("AWS Textract Error: " + textractException.Message);
+                            throw;
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine("General Exception: " + e.Message);
+                            throw;
+                        }
+
+                    }
+                    else
+                    {
+                        throw new Exception($"Document {fileName} does not exist for {userName}");
+                    }
+                }
+                else
+                {
+                    throw new Exception($"Document {fileName} does not exist for {userName}");
+                }
+            }
+            else
+            {
+                throw new Exception($"User Not Found");
+            }
+        }
     }
 }
 

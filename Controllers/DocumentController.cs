@@ -95,9 +95,10 @@ namespace NSWalks.API.Controllers
             // Return the file as a download to the user
             return File(fileBytes, "application/octet-stream", fileName);
         }
+
         // Download File from S3
         [Authorize]
-        [HttpGet("download-links")]
+        [HttpGet("downloadLinks")]
         public async Task<IActionResult> GetAllDownloadableLinks()
         {
             // Get all download links for the current logged-in user
@@ -119,6 +120,30 @@ namespace NSWalks.API.Controllers
             return Ok(downloadLinks);
         }
 
+        [Authorize]
+        [HttpPost("startTextract")]
+        public async Task<IActionResult> StartTextractAsync(string fileName, string type)
+        {
+            try
+            {
+                if (type.Equals("Receipt"))
+                {
+                    var result = await documentRepository.StartExpenseExtractAsync(fileName);
+                    return Ok(result);
+                }
+                else
+                {
+                    var result = await documentRepository.StartExtractAsync(fileName);
+                    return Ok(result);
+                }
+
+
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+        }
     }
 }
 
