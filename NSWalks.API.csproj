@@ -51,6 +51,9 @@
     <None Remove="Repositories\Documents\" />
     <None Remove="Repositories\Users\" />
     <None Remove="Repositories\AuthToken\" />
+    <None Remove="Models\Domain\Expense\" />
+    <None Remove="Models\Domain\Document\" />
+    <None Remove="Models\Domain\User\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Models\" />
@@ -69,9 +72,13 @@
     <Folder Include="Repositories\Documents\" />
     <Folder Include="Repositories\Users\" />
     <Folder Include="Repositories\AuthToken\" />
+    <Folder Include="Models\Domain\Expense\" />
+    <Folder Include="Models\Domain\Document\" />
+    <Folder Include="Models\Domain\User\" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="WeatherForecast.cs" />
     <Compile Remove="Controllers\ValuesController.cs" />
+    <Compile Remove="Migrations\UserDocumentsDb\20240928105537_newArc.Designer.cs" />
   </ItemGroup>
 </Project>

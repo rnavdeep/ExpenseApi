@@ -12,16 +12,25 @@ namespace NSWalks.API.Data
         }
 
         public DbSet<User> Users { get; set; }
+        public DbSet<Expense> Expenses { get; set; }
         public DbSet<Document> Documents { get; set; }
+        public DbSet<ExpenseUser> ExpenseUsers { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            base.OnModelCreating(modelBuilder);
+            // Configure the many-to-many relationship between Expense and User
+            modelBuilder.Entity<ExpenseUser>()
+                .HasKey(eu => new { eu.ExpenseId, eu.UserId });
 
-            // Defining One-to-Many relationship between User and Document
-            modelBuilder.Entity<User>()
-                .HasMany(u => u.Documents)
-                .WithOne(d => d.User)
-                .HasForeignKey(d => d.UserId);
+            modelBuilder.Entity<ExpenseUser>()
+                .HasOne(eu => eu.Expense)
+                .WithMany(e => e.ExpenseUsers)
+                .HasForeignKey(eu => eu.ExpenseId);
+
+            modelBuilder.Entity<ExpenseUser>()
+                .HasOne(eu => eu.User)
+                .WithMany(u => u.ExpenseUsers)
+                .HasForeignKey(eu => eu.UserId);
         }
     }
 }
