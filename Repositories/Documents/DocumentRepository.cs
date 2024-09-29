@@ -418,8 +418,8 @@ namespace Expense.API.Repositories.Documents
                             {
                                 S3Object = new S3Object
                                 {
-                                    Bucket = bucketName, // Just the bucket name
-                                    Name = $"Documents/{userName}/{fileName}" // Folder structure included in Name
+                                    Bucket = bucketName,
+                                    Name = $"Documents/{userName}/{fileName}"
                                 }
                             }
                         };

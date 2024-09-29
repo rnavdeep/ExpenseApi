@@ -18,10 +18,12 @@ namespace Expense.API.Models.Domain
         public Guid UserId { get; set; }
         public User User { get; set; } // Navigation Property
 
+        public Guid ExpenseId { get; set; }
         /// <summary>
         /// One document can be attached to one expense
         /// </summary>
         public Expense Expense { get; set; }
+
     }
 }
 
