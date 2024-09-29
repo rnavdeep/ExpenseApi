@@ -18,6 +18,7 @@ using Expense.API.Repositories.Documents;
 using Expense.API.Repositories.Users;
 using Expense.API.Repositories.AuthToken;
 using Expense.API.Repositories.Expense;
+using Expense.API.Repositories.ExpenseAnalysis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -87,6 +88,7 @@ builder.Services.AddScoped<ITokenRepository, TokenRepository>();
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
+builder.Services.AddScoped<IExpenseAnalysis, ExpenseAnalysis>();
 
 builder.Services.AddAutoMapper(typeof(AutomapperProfiles));
 
