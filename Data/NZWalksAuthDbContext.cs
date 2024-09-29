@@ -3,13 +3,13 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
-namespace NSWalks.API.Data
+namespace Expense.API.Data
 {
-	public class NZWalksAuthDbContext:IdentityDbContext
-	{
-		public NZWalksAuthDbContext(DbContextOptions<NZWalksAuthDbContext> options):base(options)
-		{
-		}
+    public class ExpenseAuthDbContext : IdentityDbContext
+    {
+        public ExpenseAuthDbContext(DbContextOptions<ExpenseAuthDbContext> options) : base(options)
+        {
+        }
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);

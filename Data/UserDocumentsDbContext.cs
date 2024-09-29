@@ -1,8 +1,9 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore;
-using NSWalks.API.Models.Domain;
+using Expense.API.Models.Domain;
+using ExpenseModel = Expense.API.Models.Domain.Expense;
 
-namespace NSWalks.API.Data
+namespace Expense.API.Data
 {
 	public class UserDocumentsDbContext: DbContext
 	{
@@ -12,7 +13,7 @@ namespace NSWalks.API.Data
         }
 
         public DbSet<User> Users { get; set; }
-        public DbSet<Expense> Expenses { get; set; }
+        public DbSet<ExpenseModel> Expenses { get; set; }
         public DbSet<Document> Documents { get; set; }
         public DbSet<ExpenseUser> ExpenseUsers { get; set; }
 
@@ -31,7 +32,7 @@ namespace NSWalks.API.Data
                 .HasOne(eu => eu.User)
                 .WithMany(u => u.ExpenseUsers)
                 .HasForeignKey(eu => eu.UserId);
-            modelBuilder.Entity<Expense>()
+            modelBuilder.Entity<ExpenseModel>()
                 .HasOne(e => e.CreatedBy)
                 .WithMany() 
                 .HasForeignKey(e => e.CreatedById)

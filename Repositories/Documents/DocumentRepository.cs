@@ -5,13 +5,13 @@ using Amazon.Textract;
 using Amazon.Textract.Model;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
-using NSWalks.API.Data;
-using NSWalks.API.Models.DTO;
-using Document = NSWalks.API.Models.Domain.Document;
+using Expense.API.Data;
+using Expense.API.Models.DTO;
+using Document = Expense.API.Models.Domain.Document;
 using Formatting = Newtonsoft.Json.Formatting;
 using S3Object = Amazon.Textract.Model.S3Object;
 
-namespace NSWalks.API.Repositories.Documents
+namespace Expense.API.Repositories.Documents
 {
     public class DocumentRepository : IDocumentRepository
 	{

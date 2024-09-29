@@ -1,34 +1,24 @@
 ﻿using System;
 using AutoMapper;
-using NSWalks.API.Models.Domain;
-using NSWalks.API.Models.DTO;
-
-namespace NSWalks.API.Mappings
+using Expense.API.Models.Domain;
+using Expense.API.Models.DTO;
+using ExpenseModel = Expense.API.Models.Domain.Expense;
+namespace Expense.API.Mappings
 {
 	public class AutomapperProfiles : Profile
 	{
 		public AutomapperProfiles()
 		{
-			CreateMap<Region, RegionDto>().ReverseMap();
-            CreateMap<Region, AddRegionRequestDto>().ReverseMap();
-            CreateMap<Region, UpdateRegionRequestDto>().ReverseMap();
-			CreateMap<Difficulty, DifficultyDto>().ReverseMap();
-            CreateMap<Difficulty, UpdateDifficultDto>().ReverseMap();
-			CreateMap<Walks, AddWalkRequestDto>().ReverseMap();
-            CreateMap<Walks, WalkDto>().ReverseMap();
-            CreateMap<Walks, UpdateWalkRequestDto>().ReverseMap();
-            CreateMap<WalkImage, WalkImageDto>().ReverseMap();
-            CreateMap<RegionImage, RegionImageDto>().ReverseMap();
             CreateMap<User, RegisterRequestDto>().ReverseMap();
             CreateMap<User, UserDto>().ReverseMap();
             CreateMap<Document, DocumentDto>().ReverseMap();
-            CreateMap<Expense, AddExpenseDto>().ReverseMap();
-            CreateMap<Expense, ExpenseDto>().ReverseMap();
+            CreateMap<ExpenseModel, AddExpenseDto>().ReverseMap();
+            CreateMap<ExpenseModel, ExpenseDto>().ReverseMap();
             // Mapping from Expense to ExpenseDto
-            CreateMap<Expense, ExpenseDto>()
+            CreateMap<ExpenseModel, ExpenseDto>()
                 .ForMember(dest => dest.CreatedByName, opt => opt.MapFrom(src => src.CreatedBy.Username))
                 .ForMember(dest => dest.DocumentUrls, opt => opt.MapFrom(src => src.Documents.Select(d => d.S3Url).ToList()));
-            CreateMap<ExpenseDto, Expense>();
+            CreateMap<ExpenseDto, ExpenseModel>();
         }
     }
 }

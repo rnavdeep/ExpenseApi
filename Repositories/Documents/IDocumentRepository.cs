@@ -1,8 +1,8 @@
 ﻿using System;
-using NSWalks.API.Models.Domain;
-using NSWalks.API.Models.DTO;
+using Expense.API.Models.Domain;
+using Expense.API.Models.DTO;
 
-namespace NSWalks.API.Repositories.Documents
+namespace Expense.API.Repositories.Documents
 {
 	public interface IDocumentRepository
 	{

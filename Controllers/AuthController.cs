@@ -1,19 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using AutoMapper;
+﻿using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using NSWalks.API.Models.Domain;
-using NSWalks.API.Models.DTO;
-using NSWalks.API.Repositories.AuthToken;
-using NSWalks.API.Repositories.Users;
+using Expense.API.Models.Domain;
+using Expense.API.Repositories.Users;
+using Expense.API.Repositories.AuthToken;
+using Expense.API.Models.DTO;
 
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
-namespace NSWalks.API.Controllers
+namespace Expense.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]

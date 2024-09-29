@@ -1,17 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using AutoMapper;
+﻿using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using NSWalks.API.Models.Domain;
-using NSWalks.API.Models.DTO;
-using NSWalks.API.Repositories.Expense;
-
+using Expense.API.Models.Domain;
+using Expense.API.Models.DTO;
+using Expense.API.Repositories.Expense;
+using ExpenseModel = Expense.API.Models.Domain.Expense;
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
-namespace NSWalks.API.Controllers
+namespace Expense.API.Controllers
 {
     [Route("api/[controller]")]
     [Authorize]
@@ -63,7 +59,7 @@ namespace NSWalks.API.Controllers
         {
             try
             {
-                var expenseCreated = await expenseRepository.CreateExpenseAsync(mapper.Map<Expense>(addExpenseDto));
+                var expenseCreated = await expenseRepository.CreateExpenseAsync(mapper.Map<ExpenseModel>(addExpenseDto));
                 var expenseDto = mapper.Map<ExpenseDto>(expenseCreated);
 
                 if (expenseCreated != null)

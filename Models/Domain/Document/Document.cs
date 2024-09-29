@@ -1,5 +1,5 @@
 ﻿using System;
-namespace NSWalks.API.Models.Domain
+namespace Expense.API.Models.Domain
 {
 	public class Document
 	{

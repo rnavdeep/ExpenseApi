@@ -3,7 +3,7 @@ using System.Net;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 
-namespace NSWalks.API.Middlewares
+namespace Expense.API.Middlewares
 {
 	public class ExceptionHandlerMiddleware
 	{

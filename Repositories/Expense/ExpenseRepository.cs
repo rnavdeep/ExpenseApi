@@ -1,11 +1,10 @@
 ﻿using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
-using NSWalks.API.Data;
-using NSWalks.API.Migrations.UserDocumentsDb;
-using NSWalks.API.Models.Domain;
-using ExpenseModel = NSWalks.API.Models.Domain.Expense;
+using Expense.API.Data;
+using Expense.API.Models.Domain;
+using ExpenseModel = Expense.API.Models.Domain.Expense;
 
-namespace NSWalks.API.Repositories.Expense
+namespace Expense.API.Repositories.Expense
 {
 	public class ExpenseRepository: IExpenseRepository
 	{

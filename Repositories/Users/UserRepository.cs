@@ -1,9 +1,9 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore;
-using NSWalks.API.Data;
-using NSWalks.API.Models.Domain;
+using Expense.API.Data;
+using Expense.API.Models.Domain;
 
-namespace NSWalks.API.Repositories.Users
+namespace Expense.API.Repositories.Users
 {
 	public class UserRepository:IUserRepository
 	{

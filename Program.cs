@@ -3,22 +3,21 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using NSWalks.API.Data;
-using NSWalks.API.Mappings;
-using NSWalks.API.Repositories;
+using Expense.API.Data;
+using Expense.API.Mappings;
 using Microsoft.OpenApi.Models;
 using Microsoft.Extensions.FileProviders;
 using Serilog;
-using NSWalks.API.Middlewares;
+using Expense.API.Middlewares;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 using Amazon.S3;
 using Amazon.Textract;
 
-using NSWalks.API.Repositories.Documents;
-using NSWalks.API.Repositories.Users;
-using NSWalks.API.Repositories.AuthToken;
-using NSWalks.API.Repositories.Expense;
+using Expense.API.Repositories.Documents;
+using Expense.API.Repositories.Users;
+using Expense.API.Repositories.AuthToken;
+using Expense.API.Repositories.Expense;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,7 +26,7 @@ var builder = WebApplication.CreateBuilder(args);
 //write logs to console with minimum level of information
 var logger = new LoggerConfiguration()
     .WriteTo.Console()
-    .WriteTo.File("Logs/NSWalks_Log.txt",rollingInterval:RollingInterval.Day)
+    .WriteTo.File("Logs/Expense.txt",rollingInterval:RollingInterval.Day)
     .MinimumLevel.Information().CreateLogger();
 builder.Logging.ClearProviders();
 builder.Logging.AddSerilog(logger);
@@ -48,7 +47,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo { Title = "NZWalksApi", Version = "v1" });
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "ExpenseApi", Version = "v1" });
     options.AddSecurityDefinition(JwtBearerDefaults.AuthenticationScheme, new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -77,20 +76,14 @@ builder.Services.AddSwaggerGen(options =>
 
 //db services
 //webapi
-builder.Services.AddDbContext<NZWalksDbContext>(options =>
-options.UseSqlServer(builder.Configuration.GetConnectionString("NZWalksConnectionString")));
 builder.Services.AddDbContext<UserDocumentsDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("NZWalksConnectionString")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("ExpenseConnectionString")));
 //authentication
-builder.Services.AddDbContext<NZWalksAuthDbContext>(options =>
-options.UseSqlServer(builder.Configuration.GetConnectionString("NZWalksAuthConnectionString")));
+builder.Services.AddDbContext<ExpenseAuthDbContext>(options =>
+options.UseSqlServer(builder.Configuration.GetConnectionString("ExpenseAuthConnectionString")));
 
 
-builder.Services.AddScoped<IRegionRepository, RegionRepository>();
-builder.Services.AddScoped<IDifficultyRepository, DifficultyRepository>();
-builder.Services.AddScoped<IWalksRepository, WalksRepository>();
 builder.Services.AddScoped<ITokenRepository, TokenRepository>();
-builder.Services.AddScoped<IImagesRepository, ImagesRepository>();
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
@@ -99,7 +92,7 @@ builder.Services.AddAutoMapper(typeof(AutomapperProfiles));
 
 builder.Services.AddIdentityCore<IdentityUser>().AddRoles<IdentityRole>()
     .AddTokenProvider<DataProtectorTokenProvider<IdentityUser>>("NZWalks")
-    .AddEntityFrameworkStores<NZWalksAuthDbContext>()
+    .AddEntityFrameworkStores<ExpenseAuthDbContext>()
     .AddDefaultTokenProviders();
 //password settings
 builder.Services.Configure<IdentityOptions>(options =>{
@@ -156,20 +149,7 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
-//WalkImages Configuration
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(),"Images/WalkImages")),
-    RequestPath = "/Images/WalkImages"
-});
-//RegionImages configuration
 
-// Configure the second set of static files
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), "Images/RegionImages")),
-    RequestPath = "/Images/RegionImages"
-});
 app.MapControllers();
 
 app.Run();

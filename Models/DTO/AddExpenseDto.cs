@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace NSWalks.API.Models.DTO
+namespace Expense.API.Models.DTO
 {
 	public class AddExpenseDto
 	{

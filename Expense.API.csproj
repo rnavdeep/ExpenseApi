@@ -43,8 +43,6 @@
     <None Remove="Mappings\" />
     <None Remove="CustomActionFilters\" />
     <None Remove="Images\" />
-    <None Remove="Images\WalkImages\" />
-    <None Remove="Images\RegionImages\" />
     <None Remove="Logs\" />
     <None Remove="Middlewares\" />
     <None Remove="Images\Documents\" />
@@ -55,6 +53,7 @@
     <None Remove="Models\Domain\Document\" />
     <None Remove="Models\Domain\User\" />
     <None Remove="Repositories\Expense\" />
+    <None Remove="Migrations\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Models\" />
@@ -65,8 +64,6 @@
     <Folder Include="Mappings\" />
     <Folder Include="CustomActionFilters\" />
     <Folder Include="Images\" />
-    <Folder Include="Images\WalkImages\" />
-    <Folder Include="Images\RegionImages\" />
     <Folder Include="Logs\" />
     <Folder Include="Middlewares\" />
     <Folder Include="Images\Documents\" />
@@ -77,10 +74,43 @@
     <Folder Include="Models\Domain\Document\" />
     <Folder Include="Models\Domain\User\" />
     <Folder Include="Repositories\Expense\" />
+    <Folder Include="Migrations\" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="WeatherForecast.cs" />
     <Compile Remove="Controllers\ValuesController.cs" />
     <Compile Remove="Migrations\UserDocumentsDb\20240928105537_newArc.Designer.cs" />
-  </ItemGroup>
+    <Compile Remove="Controllers\DifficultyController.cs" />
+    <Compile Remove="Controllers\RegionsController.cs" />
+    <Compile Remove="Controllers\ImagesController.cs" />
+    <Compile Remove="Controllers\WalksController.cs" />
+    <Compile Remove="Migrations\NZWalksAuthDb\20230909161517_authDatabase.Designer.cs" />
+    <Compile Remove="Migrations\NZWalksAuthDb\NZWalksAuthDbContextModelSnapshot.cs" />
+    <Compile Remove="Migrations\NZWalksAuthDb\20230909161517_authDatabase.cs" />
+    <Compile Remove="Migrations\20230906104835_initial.cs" />
+    <Compile Remove="Migrations\NZWalksDbContextModelSnapshot.cs" />
+    <Compile Remove="Migrations\20230906104835_initial.Designer.cs" />
+    <Compile Remove="Models\Domain\Region.cs" />
+    <Compile Remove="Models\Domain\Difficulty.cs" />
+    <Compile Remove="Models\Domain\WalkImage.cs" />
+    <Compile Remove="Models\Domain\RegionImage.cs" />
+    <Compile Remove="Models\Domain\Walks.cs" />
+    <Compile Remove="Models\DTO\DifficultyDto.cs" />
+    <Compile Remove="Models\DTO\WalkDto.cs" />
+    <Compile Remove="Models\DTO\UpdateWalkRequestDto.cs" />
+    <Compile Remove="Models\DTO\RegionDto.cs" />
+    <Compile Remove="Models\DTO\AddRegionRequestDto.cs" />
+    <Compile Remove="Models\DTO\UpdateRegionRequestDto.cs" />
+    <Compile Remove="Models\DTO\AddWalkRequestDto.cs" />
+    <Compile Remove="Models\DTO\UpdateDifficultDto.cs" />
+    <Compile Remove="Repositories\IWalksRepository.cs" />
+    <Compile Remove="Repositories\IRegionRepository.cs" />
+    <Compile Remove="Repositories\ImagesRepository.cs" />
+    <Compile Remove="Repositories\IImagesRepository.cs" />
+    <Compile Remove="Repositories\IDifficultyRepository.cs" />
+    <Compile Remove="Repositories\DifficultyRepository.cs" />
+    <Compile Remove="Repositories\WalksRepository.cs" />
+    <Compile Remove="Repositories\RegionRepository.cs" />
+    <Compile Remove="Data\NZWalksDbContext.cs" />
+</ItemGroup>
 </Project>

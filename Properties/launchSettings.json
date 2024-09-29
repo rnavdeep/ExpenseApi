@@ -37,10 +37,10 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
     },
-    "NSWalks.API": {
+    "Expense.API": {
       "commandName": "Project",
       "launchBrowser": true,
-      "applicationUrl": "https://localhost:19435;http://localhost:44524",
+      "applicationUrl": "https://localhost:15372;http://localhost:49804",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development"
       }

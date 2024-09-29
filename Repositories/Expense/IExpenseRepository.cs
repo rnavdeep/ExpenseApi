@@ -1,8 +1,8 @@
 ﻿using System;
-using NSWalks.API.Models.Domain;
-using ExpenseModel = NSWalks.API.Models.Domain.Expense;
+using Expense.API.Models.Domain;
+using ExpenseModel = Expense.API.Models.Domain.Expense;
 
-namespace NSWalks.API.Repositories.Expense
+namespace Expense.API.Repositories.Expense
 {
 	public interface IExpenseRepository
 	{

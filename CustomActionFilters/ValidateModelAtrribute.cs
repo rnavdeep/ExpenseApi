@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace NSWalks.API.CustomActionFilters
+namespace Expense.API.CustomActionFilters
 {
 	public class ValidateModelAtrribute:ActionFilterAttribute
 	{

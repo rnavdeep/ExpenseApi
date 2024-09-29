@@ -1,7 +1,7 @@
 ﻿using System;
-using NSWalks.API.Models.Domain;
+using Expense.API.Models.Domain;
 
-namespace NSWalks.API.Repositories.Users
+namespace Expense.API.Repositories.Users
 {
 	public interface IUserRepository
 	{
