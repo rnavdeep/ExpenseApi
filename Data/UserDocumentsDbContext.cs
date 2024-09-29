@@ -31,6 +31,11 @@ namespace NSWalks.API.Data
                 .HasOne(eu => eu.User)
                 .WithMany(u => u.ExpenseUsers)
                 .HasForeignKey(eu => eu.UserId);
+            modelBuilder.Entity<Expense>()
+                .HasOne(e => e.CreatedBy)
+                .WithMany() 
+                .HasForeignKey(e => e.CreatedById)
+                .OnDelete(DeleteBehavior.Restrict);  
         }
     }
 }

@@ -9,6 +9,11 @@
         public string Description { get; set; }
         public decimal Amount { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        /// <summary>
+        /// User the expense is created by.
+        /// </summary>
+        public Guid CreatedById { get; set; }  // Foreign key for User
+        public User CreatedBy { get; set; }     // Navigation property
 
         //Navgational Properties
 

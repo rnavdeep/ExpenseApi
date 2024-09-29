@@ -3,8 +3,10 @@ namespace NSWalks.API.Models.Domain
 {
 	public class ExpenseUser
 	{
-		public ExpenseUser()
+		public ExpenseUser(Guid expenseId, Guid userId)
 		{
+            this.ExpenseId = expenseId;
+            this.UserId = userId;
 		}
         /// <summary>
         /// Foreign key for the associated Expense.

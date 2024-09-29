@@ -54,6 +54,7 @@
     <None Remove="Models\Domain\Expense\" />
     <None Remove="Models\Domain\Document\" />
     <None Remove="Models\Domain\User\" />
+    <None Remove="Repositories\Expense\" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Models\" />
@@ -75,6 +76,7 @@
     <Folder Include="Models\Domain\Expense\" />
     <Folder Include="Models\Domain\Document\" />
     <Folder Include="Models\Domain\User\" />
+    <Folder Include="Repositories\Expense\" />
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="WeatherForecast.cs" />

@@ -18,6 +18,7 @@ using Amazon.Textract;
 using NSWalks.API.Repositories.Documents;
 using NSWalks.API.Repositories.Users;
 using NSWalks.API.Repositories.AuthToken;
+using NSWalks.API.Repositories.Expense;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -92,6 +93,7 @@ builder.Services.AddScoped<ITokenRepository, TokenRepository>();
 builder.Services.AddScoped<IImagesRepository, ImagesRepository>();
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 
 builder.Services.AddAutoMapper(typeof(AutomapperProfiles));
 
