@@ -46,11 +46,18 @@ namespace Expense.API.Controllers
             }
         }
 
-        // GET api/values/5
-        [HttpGet("{id}")]
+        // GET api/values/Guid
+        [HttpGet("{guid}")]
         public async Task<IActionResult> Get(Guid guid)
         {
-            return BadRequest();
+            try
+            {
+                return Ok(await expenseRepository.GetExpenseByIdAsync(guid));
+            }
+            catch(Exception e)
+            {
+                return BadRequest(e.Message);
+            }
         }
 
         // POST api/values

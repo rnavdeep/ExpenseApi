@@ -10,6 +10,7 @@ using Expense.API.Models.DTO;
 using Document = Expense.API.Models.Domain.Document;
 using Formatting = Newtonsoft.Json.Formatting;
 using S3Object = Amazon.Textract.Model.S3Object;
+using Expense.API.Repositories.Expense;
 
 namespace Expense.API.Repositories.Documents
 {
@@ -20,15 +21,16 @@ namespace Expense.API.Repositories.Documents
         private readonly IHttpContextAccessor httpContextAccessor;
         private readonly UserDocumentsDbContext userDocumentsDbContext;
         private readonly IAmazonTextract amazonTextract;
-
+        private readonly IExpenseRepository expenseRepository;
         public DocumentRepository(IConfiguration configuration, IAmazonS3 amazonS3, IHttpContextAccessor httpContextAccessor
-            ,UserDocumentsDbContext userDocumentsDbContext, IAmazonTextract amazonTextract)
+            ,UserDocumentsDbContext userDocumentsDbContext, IAmazonTextract amazonTextract, IExpenseRepository expenseRepository)
 		{
             this.configuration = configuration;
             this.s3Client = amazonS3;
             this.httpContextAccessor = httpContextAccessor;
             this.userDocumentsDbContext = userDocumentsDbContext;
             this.amazonTextract = amazonTextract;
+            this.expenseRepository = expenseRepository;
 		}
 
         public async Task<GetObjectResponse?> FindDocumentS3Async(string? bucketName, string? key)
@@ -201,6 +203,7 @@ namespace Expense.API.Repositories.Documents
                     doc.ETag = resp.ETag;
                     doc.VersionId = resp.VersionId;
                 }
+                doc.Expense = await expenseRepository.GetExpenseByIdAsync(documentDto.ExpenseId);
                 return await UploadDocumentDetailsAsync(doc);
             }
             else

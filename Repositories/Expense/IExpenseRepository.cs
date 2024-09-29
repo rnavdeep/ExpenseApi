@@ -11,6 +11,14 @@ namespace Expense.API.Repositories.Expense
 		/// </summary>
 		/// <returns></returns>
 		public Task<List<ExpenseModel>> GetExpensesAsync();
+
+		/// <summary>
+		/// Get by Expense Id
+		/// </summary>
+		/// <param name="expenseId"></param>
+		/// <returns></returns>
+		public Task<ExpenseModel> GetExpenseByIdAsync(Guid expenseId);
+
 		/// <summary>
 		/// Create Expense for logged in User.
 		/// </summary>

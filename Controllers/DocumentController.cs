@@ -1,11 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using AutoMapper;
+﻿using AutoMapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Expense.API.Models.Domain;
 using Expense.API.Models.DTO;
 using Expense.API.Repositories.Documents;
 using Expense.API.Repositories.Users;

@@ -61,6 +61,24 @@ namespace Expense.API.Repositories.Expense
             return expenseUser;
         }
 
+        public async Task<ExpenseModel> GetExpenseByIdAsync(Guid expenseId)
+        {
+            // Retrieve the current logged-in user from the HttpContext
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+                             .FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+
+            //check if the user Exists -- Just In Case
+            var user = await userDocumentsDbContext.Users.FirstOrDefaultAsync(
+                user => user.Email.Equals(userName)
+            );
+
+            if(user != null)
+            {
+                return await userDocumentsDbContext.Expenses.FirstAsync(expense => expense.Id.Equals(expenseId) && expense.CreatedById.Equals(user.Id));
+            }
+            throw new Exception($"Expense not found {expenseId} for user {userName}");
+        }
+
         public async Task<List<ExpenseModel>> GetExpensesAsync()
         {
             // Retrieve the current logged-in user's email from the HttpContext

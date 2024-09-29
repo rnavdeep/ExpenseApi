@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Expense.API.Models.Domain;
 using ExpenseModel = Expense.API.Models.Domain.Expense;
 
@@ -30,7 +29,7 @@ namespace Expense.API.Data
 
             modelBuilder.Entity<ExpenseUser>()
                 .HasOne(eu => eu.User)
-                .WithMany(u => u.ExpenseUsers)
+                .WithMany()
                 .HasForeignKey(eu => eu.UserId);
             modelBuilder.Entity<ExpenseModel>()
                 .HasOne(e => e.CreatedBy)
