@@ -1,30 +1,39 @@
-# This workflow will build a .NET project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+# This workflow builds and tests a .NET project.
+# For more information, see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-dotnet
 
-name: .NET
+name: .NET Build and Test
 
 on:
   push:
     branches:
-      - main
-      - Logging
+      - '*'  # Trigger on all branches
   pull_request:
-    branches: [ "main" ]
+    branches:
+      - '*'  # Trigger on all branches
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: 7.0.400
-    - name: Restore dependencies
-      run: dotnet restore
-    - name: Build
-      run: dotnet build --no-restore
-    #- name: Test
-     # run: dotnet test --no-build --verbosity normal
+      # Checkout the code from the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Set up the .NET environment
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 7.0.400
+
+      # Restore project dependencies
+      - name: Restore dependencies
+        run: dotnet restore
+
+      # Build the project
+      - name: Build project
+        run: dotnet build --no-restore
+
+      # Uncomment to run tests
+      # - name: Run tests
+      #   run: dotnet test --no-build --verbosity normal
