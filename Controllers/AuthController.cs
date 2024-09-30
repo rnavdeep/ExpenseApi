@@ -5,6 +5,7 @@ using Expense.API.Models.Domain;
 using Expense.API.Repositories.Users;
 using Expense.API.Repositories.AuthToken;
 using Expense.API.Models.DTO;
+using Newtonsoft.Json;
 
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
@@ -30,78 +31,98 @@ namespace Expense.API.Controllers
         // POST api/Auth/Register
         [HttpPost]
         [Route("Register")]
-        public async Task<IActionResult> Register([FromBody]RegisterRequestDto registerRequestDto)
+        public async Task<IActionResult> Register()
         {
-            var identityUser = new IdentityUser
+            // Retrieve the decrypted data from HttpContext
+            if (HttpContext.Items.TryGetValue("DecryptedData", out var decryptedData))
             {
-                UserName = registerRequestDto.Username,
-                Email = registerRequestDto.Username
-            };
-
-            var identityResult = await userManager.CreateAsync(identityUser, registerRequestDto.Password);
-
-            if (identityResult.Succeeded)
-            {
-                if (registerRequestDto.Roles != null && registerRequestDto.Roles.Any())
+                if(decryptedData!= null)
                 {
-                    //add roles to user
-                    identityResult = await userManager.AddToRolesAsync(identityUser, registerRequestDto.Roles);
+                    var registerRequestDto = JsonConvert.DeserializeObject<RegisterRequestDto>((string)decryptedData);
+
+                    var identityUser = new IdentityUser
+                    {
+                        UserName = registerRequestDto.Username,
+                        Email = registerRequestDto.Username
+                    };
+
+                    var identityResult = await userManager.CreateAsync(identityUser, registerRequestDto.Password);
+
                     if (identityResult.Succeeded)
                     {
-                        var userModel = mapper.Map<User>(registerRequestDto);
-                        userModel.Email = registerRequestDto.Username;
-                        var userCreated = await userRepository.CreateAsync(userModel);
-                        if (userCreated != null)
+                        if (registerRequestDto.Roles != null && registerRequestDto.Roles.Any())
                         {
-                            return Ok(userCreated);
+                            //add roles to user
+                            identityResult = await userManager.AddToRolesAsync(identityUser, registerRequestDto.Roles);
+                            if (identityResult.Succeeded)
+                            {
+                                var userModel = mapper.Map<User>(registerRequestDto);
+                                userModel.Email = registerRequestDto.Username;
+                                var userCreated = await userRepository.CreateAsync(userModel);
+                                if (userCreated != null)
+                                {
+                                    return Ok(userCreated);
+                                }
+                            }
                         }
                     }
+                    return BadRequest(identityResult.Errors);
                 }
             }
-            return BadRequest(identityResult.Errors);
+            return BadRequest("No data to register user");
         }
 
         //POST /api/Auth/Login
         [HttpPost]
         [Route("Login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequestDto loginRequestDto)
+        public async Task<IActionResult> Login()
         {
-            var user = await userManager.FindByEmailAsync(loginRequestDto.Username);
-            if (user != null)
+            // Retrieve the decrypted data from HttpContext
+            if (HttpContext.Items.TryGetValue("DecryptedData", out var decryptedData))
             {
-                var isPasswordCorrect = await userManager.CheckPasswordAsync(user, loginRequestDto.Password);
-                if ( isPasswordCorrect == true)
+                if (decryptedData != null)
                 {
+                    var loginRequestDto = JsonConvert.DeserializeObject<LoginRequestDto>((string)decryptedData);
 
-                    var roles = await userManager.GetRolesAsync(user);
-                    if (roles != null)
+                    var user = await userManager.FindByEmailAsync(loginRequestDto.Username);
+                    if (user != null)
                     {
-                        //Create JWT token to use for Endpoint calls
-                        var jwtToken = tokenRepository.CreateJwtToken(user, roles.ToArray());
-                        var response = new LoginResponseDto
+                        var isPasswordCorrect = await userManager.CheckPasswordAsync(user, loginRequestDto.Password);
+                        if (isPasswordCorrect == true)
                         {
-                            JwtToken = jwtToken
-                        };
-                        // Configure cookie options
-                        var cookieOptions = new CookieOptions
-                        {
-                            HttpOnly = false,   // Prevent client-side access
-                            Secure = true,     // Send cookie only over HTTPS
-                            SameSite = SameSiteMode.Strict, // Restrict to same-site requests
-                            Expires = DateTime.UtcNow.AddHours(1) // Set cookie expiration time
-                        };
 
-                        // Add JWT token to cookies
-                        Response.Cookies.Append("jwtToken", jwtToken, cookieOptions);
+                            var roles = await userManager.GetRolesAsync(user);
+                            if (roles != null)
+                            {
+                                //Create JWT token to use for Endpoint calls
+                                var jwtToken = tokenRepository.CreateJwtToken(user, roles.ToArray());
+                                var response = new LoginResponseDto
+                                {
+                                    JwtToken = jwtToken
+                                };
+                                // Configure cookie options
+                                var cookieOptions = new CookieOptions
+                                {
+                                    HttpOnly = false,   // Prevent client-side access
+                                    Secure = true,     // Send cookie only over HTTPS
+                                    SameSite = SameSiteMode.Strict, // Restrict to same-site requests
+                                    Expires = DateTime.UtcNow.AddHours(1) // Set cookie expiration time
+                                };
 
-                        return Ok(response);
+                                // Add JWT token to cookies
+                                Response.Cookies.Append("jwtToken", jwtToken, cookieOptions);
 
+                                return Ok(response);
+
+                            }
+
+                            return Ok("Login Success");
+                        }
                     }
-
-                    return Ok("Login Success");
+                    return BadRequest("Username or Password Incorrect");
                 }
             }
-            return BadRequest("Username or Password Incorrect");
+            return BadRequest("Provide Data");
         }
 
 

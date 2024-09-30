@@ -54,5 +54,11 @@
     <Folder Include="Repositories\Expense\" />
     <Folder Include="Migrations\" />
     <Folder Include="Repositories\ExpenseAnalysis\" />
+    <Folder Include="Models\Domain\Request\" />
+    <Folder Include="Repositories\Request\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Remove="Models\Domain\Request\" />
+    <None Remove="Repositories\Request\" />
   </ItemGroup>
 </Project>

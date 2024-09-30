@@ -1,7 +1,8 @@
-﻿using System;
-using System.Net;
+﻿using System.Net;
 using System.Text;
-using Microsoft.EntityFrameworkCore;
+using Expense.API.Models.Domain;
+using Expense.API.Repositories.Request;
+using Newtonsoft.Json;
 
 namespace Expense.API.Middlewares
 {
@@ -9,13 +10,18 @@ namespace Expense.API.Middlewares
 	{
 		private readonly ILogger<ExceptionHandlerMiddleware> logger;
 		private readonly RequestDelegate next;
-		public ExceptionHandlerMiddleware(ILogger<ExceptionHandlerMiddleware> logger, RequestDelegate next)
+        private readonly IServiceProvider serviceProvider;
+
+        public ExceptionHandlerMiddleware(ILogger<ExceptionHandlerMiddleware> logger, IServiceProvider serviceProvider,
+            RequestDelegate next)
 		{
 			this.logger = logger;
 			this.next = next;
+            this.serviceProvider = serviceProvider;
 		}
 		public async Task InvokeAsync(HttpContext httpContext)
 		{
+            await DecryptData(httpContext);
             await LogRequest(httpContext);
             var originalResponseBody = httpContext.Response.Body;
 
@@ -50,7 +56,31 @@ namespace Expense.API.Middlewares
 			}
             
 		}
+        private async Task DecryptData(HttpContext context)
+        {
+            using (var scope = serviceProvider.CreateScope())
+            {
+                var requestRepository = scope.ServiceProvider.GetRequiredService<IRequestRepository>();
 
+                if (context.Request.ContentType == "application/json")
+                {
+                    context.Request.EnableBuffering(); // Enable buffering to read the request body
+                    using (var reader = new StreamReader(context.Request.Body, Encoding.UTF8, leaveOpen: true))
+                    {
+                        var requestBody = await reader.ReadToEndAsync();
+                        context.Request.Body.Position = 0; // Reset the stream position
+
+                        var encryptedData = JsonConvert.DeserializeObject<EncryptedData>(requestBody);
+                        if (encryptedData != null)
+                        {
+                            string decryptedData = requestRepository.DecryptData(encryptedData.Data);
+                            context.Items["DecryptedData"] = decryptedData; // Store the decrypted data in HttpContext
+                        }
+                    }
+                }
+            }
+
+        }
         private async Task LogResponse(HttpContext context, MemoryStream responseBody, Stream originalResponseBody)
         {
             var responseContent = new StringBuilder();

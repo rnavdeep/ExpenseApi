@@ -19,6 +19,7 @@ using Expense.API.Repositories.Users;
 using Expense.API.Repositories.AuthToken;
 using Expense.API.Repositories.Expense;
 using Expense.API.Repositories.ExpenseAnalysis;
+using Expense.API.Repositories.Request;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -89,6 +90,8 @@ builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<IExpenseAnalysis, ExpenseAnalysis>();
+builder.Services.AddScoped<IRequestRepository, RequestRepository>();
+
 
 builder.Services.AddAutoMapper(typeof(AutomapperProfiles));
 
@@ -137,6 +140,13 @@ var c = builder.Configuration.GetAWSOptions("AWS");
 builder.Services.AddDefaultAWSOptions(builder.Configuration.GetAWSOptions("AWS"));
 builder.Services.AddAWSService<IAmazonS3>();
 builder.Services.AddAWSService<IAmazonTextract>();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAllOrigins",
+        builder => builder.AllowAnyOrigin()
+                          .AllowAnyMethod()
+                          .AllowAnyHeader());
+});
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -148,10 +158,10 @@ if (app.Environment.IsDevelopment())
 }
 app.UseMiddleware<ExceptionHandlerMiddleware>();
 app.UseHttpsRedirection();
-
+app.UseCors("AllowAllOrigins");
+app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
