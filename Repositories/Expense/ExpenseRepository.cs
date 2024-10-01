@@ -83,7 +83,7 @@ namespace Expense.API.Repositories.Expense
         {
             // Retrieve the current logged-in user's email from the HttpContext
             var userName = httpContextAccessor.HttpContext?.User?.Claims
-                             .FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+                             .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
 
             // Check if the user exists in the database
             var user = await userDocumentsDbContext.Users

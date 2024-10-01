@@ -10,6 +10,7 @@ using Microsoft.Extensions.FileProviders;
 using Serilog;
 using Expense.API.Middlewares;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using StackExchange.Redis;
 
 using Amazon.S3;
 using Amazon.Textract;
@@ -20,6 +21,7 @@ using Expense.API.Repositories.AuthToken;
 using Expense.API.Repositories.Expense;
 using Expense.API.Repositories.ExpenseAnalysis;
 using Expense.API.Repositories.Request;
+using Expense.API.Repositories.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -91,6 +93,7 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IExpenseRepository, ExpenseRepository>();
 builder.Services.AddScoped<IExpenseAnalysis, ExpenseAnalysis>();
 builder.Services.AddScoped<IRequestRepository, RequestRepository>();
+builder.Services.AddScoped<IRedisRepository, RedisRepository>();
 
 
 builder.Services.AddAutoMapper(typeof(AutomapperProfiles));
@@ -108,6 +111,9 @@ builder.Services.Configure<IdentityOptions>(options =>{
     options.Password.RequiredLength = 6;
     options.Password.RequiredUniqueChars = 1;
 });
+// Configure Redis
+var redisConnection = builder.Configuration.GetConnectionString("Redis");
+builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConnection));
 
 // Configure JWT authentication
 builder.Services.AddAuthentication(options =>
@@ -117,6 +123,19 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var token = context.HttpContext.Request.Cookies["jwtToken"];
+            if (!string.IsNullOrEmpty(token))
+            {
+                context.Token = token; 
+            }
+
+            return Task.CompletedTask;
+        }
+    };
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -127,13 +146,6 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Issuer"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
     };
-})
-.AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
-{
-    options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // Ensure cookies are sent over HTTPS
-    options.Cookie.SameSite = SameSiteMode.Strict;
-    options.LoginPath = "/api/Auth/Login"; // Define the login path
 });
 // Configure AWS SDK
 var c = builder.Configuration.GetAWSOptions("AWS");
@@ -143,9 +155,10 @@ builder.Services.AddAWSService<IAmazonTextract>();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAllOrigins",
-        builder => builder.AllowAnyOrigin()
+        builder => builder.WithOrigins("http://localhost:5173")
                           .AllowAnyMethod()
-                          .AllowAnyHeader());
+                          .AllowAnyHeader()
+                          .AllowCredentials());
 });
 var app = builder.Build();
 
@@ -156,7 +169,11 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
     
 }
+// Register your custom middleware in the desired order
 app.UseMiddleware<ExceptionHandlerMiddleware>();
+app.UseMiddleware<LoginHandlerMiddleware>();
+app.UseMiddleware<RequestHandlerMiddleware>();
+
 app.UseHttpsRedirection();
 app.UseCors("AllowAllOrigins");
 app.UseRouting();

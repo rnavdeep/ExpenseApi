@@ -6,6 +6,8 @@ using Expense.API.Repositories.Users;
 using Expense.API.Repositories.AuthToken;
 using Expense.API.Models.DTO;
 using Newtonsoft.Json;
+using Expense.API.Repositories.Redis;
+using Microsoft.AspNetCore.Authorization;
 
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
@@ -20,17 +22,21 @@ namespace Expense.API.Controllers
         private readonly ITokenRepository tokenRepository;
         private readonly IUserRepository userRepository;
         private readonly IMapper mapper;
+        private readonly IRedisRepository redisRepository;
 
-        public AuthController(UserManager<IdentityUser> userManager, ITokenRepository tokenRepository, IMapper mapper, IUserRepository userRepository)
+        public AuthController(UserManager<IdentityUser> userManager, ITokenRepository tokenRepository, IMapper mapper, IUserRepository userRepository,
+            IRedisRepository redisRepository)
         {
             this.userManager = userManager;
             this.tokenRepository = tokenRepository;
             this.mapper = mapper;
             this.userRepository = userRepository;
+            this.redisRepository = redisRepository;
         }
         // POST api/Auth/Register
         [HttpPost]
         [Route("Register")]
+        [Authorize]
         public async Task<IActionResult> Register()
         {
             // Retrieve the decrypted data from HttpContext
@@ -85,7 +91,8 @@ namespace Expense.API.Controllers
                     var loginRequestDto = JsonConvert.DeserializeObject<LoginRequestDto>((string)decryptedData);
 
                     var user = await userManager.FindByEmailAsync(loginRequestDto.Username);
-                    if (user != null)
+                    var userInDb = await userRepository.GetUserByEmail(loginRequestDto.Username);
+                    if (user != null && userInDb != null)
                     {
                         var isPasswordCorrect = await userManager.CheckPasswordAsync(user, loginRequestDto.Password);
                         if (isPasswordCorrect == true)
@@ -103,15 +110,22 @@ namespace Expense.API.Controllers
                                 // Configure cookie options
                                 var cookieOptions = new CookieOptions
                                 {
-                                    HttpOnly = false,   // Prevent client-side access
-                                    Secure = true,     // Send cookie only over HTTPS
-                                    SameSite = SameSiteMode.Strict, // Restrict to same-site requests
-                                    Expires = DateTime.UtcNow.AddHours(1) // Set cookie expiration time
+                                    HttpOnly = true,
+                                    Secure = false,
+                                    SameSite = SameSiteMode.Unspecified, 
+                                    Expires = DateTime.UtcNow.AddHours(1)
+                                    ,Path = "/",
+
                                 };
+
 
                                 // Add JWT token to cookies
                                 Response.Cookies.Append("jwtToken", jwtToken, cookieOptions);
+                                //Add JWT token to cache
+                                await redisRepository.StoreTokenAsync(userName: userInDb.Username, jwtToken);
+                                Console.WriteLine();
 
+                                response.JwtToken = await redisRepository.GetTokenAsync(userName: userInDb.Username);
                                 return Ok(response);
 
                             }

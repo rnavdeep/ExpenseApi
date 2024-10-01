@@ -32,6 +32,7 @@
     <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
     <PackageReference Include="AWSSDK.Textract" Version="3.7.400.22" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="StackExchange.Redis" Version="2.8.16" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Models\" />
@@ -56,9 +57,11 @@
     <Folder Include="Repositories\ExpenseAnalysis\" />
     <Folder Include="Models\Domain\Request\" />
     <Folder Include="Repositories\Request\" />
+    <Folder Include="Repositories\Redis\" />
   </ItemGroup>
   <ItemGroup>
     <None Remove="Models\Domain\Request\" />
     <None Remove="Repositories\Request\" />
+    <None Remove="Repositories\Redis\" />
   </ItemGroup>
 </Project>
