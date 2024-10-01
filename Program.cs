@@ -171,7 +171,7 @@ if (app.Environment.IsDevelopment())
 }
 // Register your custom middleware in the desired order
 app.UseMiddleware<ExceptionHandlerMiddleware>();
-app.UseMiddleware<LoginHandlerMiddleware>();
+//app.UseMiddleware<LoginHandlerMiddleware>();
 app.UseMiddleware<RequestHandlerMiddleware>();
 
 app.UseHttpsRedirection();
