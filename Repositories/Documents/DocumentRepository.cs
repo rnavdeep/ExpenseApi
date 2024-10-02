@@ -172,10 +172,8 @@ namespace Expense.API.Repositories.Documents
                         await file.CopyToAsync(memoryStream);
                         memoryStream.Position = 0; // Reset the stream position for reading
 
-                        // Create a custom IFormFile using CustomFormFile
-                        var customFile = new CustomFormFile(file.FileName, file.Length, file.ContentType, memoryStream);
 
-                        string fileName = customFile.FileName;
+                        string fileName = file.FileName;
                         string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
                         string extension = Path.GetExtension(fileName);
 
@@ -189,7 +187,7 @@ namespace Expense.API.Repositories.Documents
                         var doc = new Document
                         {
                             UserId = userFound.Id,
-                            Size = customFile.Length,
+                            Size = file.Length,
                             FileExtension = extension,
                             FileName = fileName,
                             Expense = await expenseRepository.GetExpenseByIdAsync(expenseId)
@@ -202,8 +200,8 @@ namespace Expense.API.Repositories.Documents
                         {
                             BucketName = bucketName,
                             Key = newKey,
-                            InputStream = customFile.OpenReadStream(), // Use the IFormFile stream
-                            ContentType = customFile.ContentType
+                            InputStream = file.OpenReadStream(), // Use the IFormFile stream
+                            ContentType = file.ContentType
                         };
 
                         // Execute the S3 upload
