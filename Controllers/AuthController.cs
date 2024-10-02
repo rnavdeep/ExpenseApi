@@ -8,6 +8,7 @@ using Expense.API.Models.DTO;
 using Newtonsoft.Json;
 using Expense.API.Repositories.Redis;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
@@ -33,10 +34,22 @@ namespace Expense.API.Controllers
             this.userRepository = userRepository;
             this.redisRepository = redisRepository;
         }
+        // Check if token is valid
+        [HttpGet("checkSession")]
+        public async Task<IActionResult> CheckSession()
+        {
+            var sessionData = new SessionDataDto(
+                HttpContext.User.Identity.IsAuthenticated
+                    ? HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value
+                    : string.Empty, 
+                HttpContext.User.Identity.IsAuthenticated 
+            );
+
+            return Ok(sessionData); 
+        }
         // POST api/Auth/Register
         [HttpPost]
         [Route("Register")]
-        [Authorize]
         public async Task<IActionResult> Register()
         {
             // Retrieve the decrypted data from HttpContext
@@ -48,34 +61,59 @@ namespace Expense.API.Controllers
 
                     var identityUser = new IdentityUser
                     {
-                        UserName = registerRequestDto.Username,
-                        Email = registerRequestDto.Username
+                        UserName = registerRequestDto.UserName,
+                        Email = registerRequestDto.Email
                     };
-
-                    var identityResult = await userManager.CreateAsync(identityUser, registerRequestDto.Password);
-
-                    if (identityResult.Succeeded)
+                    var ifEmailExists = await userManager.FindByEmailAsync(registerRequestDto.Email);
+                    if (ifEmailExists == null)
                     {
-                        if (registerRequestDto.Roles != null && registerRequestDto.Roles.Any())
+                        var identityResult = await userManager.CreateAsync(identityUser, registerRequestDto.Password);
+
+                        if (identityResult.Succeeded)
                         {
-                            //add roles to user
-                            identityResult = await userManager.AddToRolesAsync(identityUser, registerRequestDto.Roles);
-                            if (identityResult.Succeeded)
+                            if (registerRequestDto.Roles != null && registerRequestDto.Roles.Any())
                             {
-                                var userModel = mapper.Map<User>(registerRequestDto);
-                                userModel.Email = registerRequestDto.Username;
-                                var userCreated = await userRepository.CreateAsync(userModel);
-                                if (userCreated != null)
+                                //add roles to user
+                                identityResult = await userManager.AddToRolesAsync(identityUser, registerRequestDto.Roles);
+                                if (identityResult.Succeeded)
                                 {
-                                    return Ok(userCreated);
+                                    // Generate password reset token
+                                    var token = await userManager.GeneratePasswordResetTokenAsync(identityUser);
+
+                                    // Create reset password link
+                                    var resetLink = Url.Action("ResetPassword", "Account",
+                                        new { userId = identityUser.Id, token = token }, Request.Scheme);
+
+                                    var userModel = mapper.Map<User>(registerRequestDto);
+                                    userModel.Email = registerRequestDto.Email;
+                                    var userCreated = await userRepository.CreateAsync(userModel);
+                                    if (userCreated != null)
+                                    {
+                                        return Ok(userCreated);
+                                    }
+                                    else
+                                    {
+                                        await userManager.DeleteAsync(identityUser);
+                                        return BadRequest("Unable to Add User to Local Db");
+                                    }
                                 }
                             }
                         }
+                        return BadRequest(identityResult.Errors);
+
                     }
-                    return BadRequest(identityResult.Errors);
+                    return BadRequest("User with Email Already Exists");
+
                 }
             }
             return BadRequest("No data to register user");
+        }
+        [HttpPost("Logout")]
+        public IActionResult Logout()
+        {
+            Response.Cookies.Delete("jwtToken");
+            Response.Cookies.Delete(".AspNetCore.Session");
+            return Ok(new { message = "Logged out successfully" });
         }
 
         //POST /api/Auth/Login
@@ -83,6 +121,10 @@ namespace Expense.API.Controllers
         [Route("Login")]
         public async Task<IActionResult> Login()
         {
+            var response = new LoginResponseDto
+            {
+                IsLoggedIn = false, Error = string.Empty
+            };
             // Retrieve the decrypted data from HttpContext
             if (HttpContext.Items.TryGetValue("DecryptedData", out var decryptedData))
             {
@@ -90,8 +132,9 @@ namespace Expense.API.Controllers
                 {
                     var loginRequestDto = JsonConvert.DeserializeObject<LoginRequestDto>((string)decryptedData);
 
-                    var user = await userManager.FindByEmailAsync(loginRequestDto.Username);
-                    var userInDb = await userRepository.GetUserByEmail(loginRequestDto.Username);
+                    var user = await userManager.FindByNameAsync(loginRequestDto.Username);
+                    var userInDb = user != null ? await userRepository.GetUserByEmail(user.Email) : null;
+
                     if (user != null && userInDb != null)
                     {
                         var isPasswordCorrect = await userManager.CheckPasswordAsync(user, loginRequestDto.Password);
@@ -103,10 +146,7 @@ namespace Expense.API.Controllers
                             {
                                 //Create JWT token to use for Endpoint calls
                                 var jwtToken = tokenRepository.CreateJwtToken(user, roles.ToArray());
-                                var response = new LoginResponseDto
-                                {
-                                    JwtToken = jwtToken
-                                };
+
                                 // Configure cookie options
                                 var cookieOptions = new CookieOptions
                                 {
@@ -124,19 +164,22 @@ namespace Expense.API.Controllers
                                 //Add JWT token to cache
                                 await redisRepository.StoreTokenAsync(userName: userInDb.Username, jwtToken);
                                 Console.WriteLine();
-
-                                response.JwtToken = await redisRepository.GetTokenAsync(userName: userInDb.Username);
+                                HttpContext.Session.SetString("UserSession", userInDb.Username);  // Save username in session
+                                HttpContext.Session.SetString("UserId", userInDb.Id.ToString());  // Save user ID in session
+                                response.IsLoggedIn = true;
                                 return Ok(response);
 
                             }
-
-                            return Ok("Login Success");
+                            response.Error = ("User must have a role assigned to Login");
+                            return BadRequest(response);
                         }
                     }
-                    return BadRequest("Username or Password Incorrect");
+                    response.Error = ("Username or Password Incorrect");
+                    return BadRequest(response);
                 }
             }
-            return BadRequest("Provide Data");
+            response.Error = ("Provide Data");
+            return BadRequest(response);
         }
 
 

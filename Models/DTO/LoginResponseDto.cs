@@ -6,7 +6,8 @@ namespace Expense.API.Models.DTO
 		public LoginResponseDto()
 		{
 		}
-		public string JwtToken { get; set; }
+		public bool IsLoggedIn { get; set; }
+		public string Error { get; set; }
 	}
 
 }

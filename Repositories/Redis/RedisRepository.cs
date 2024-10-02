@@ -1,13 +1,11 @@
-﻿using System;
-using StackExchange.Redis;
-
+﻿
 namespace Expense.API.Repositories.Redis
 {
 	public class RedisRepository:IRedisRepository
 	{
-        private readonly IConnectionMultiplexer redis;
+        private readonly StackExchange.Redis.IConnectionMultiplexer redis;
 
-        public RedisRepository(IConnectionMultiplexer redis)
+        public RedisRepository(StackExchange.Redis.IConnectionMultiplexer redis)
 		{
             this.redis = redis;
 		}

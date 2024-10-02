@@ -141,7 +141,93 @@ namespace Expense.API.Repositories.Documents
             //Assign Document to User
             return doc;
         }
+        public async Task<Document?> UploadFileFormAsync(IFormCollection formCollection, Guid expenseId)
+        {
+            // Retrieve the current logged-in user from the HttpContext
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+                                 .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
 
+            if (string.IsNullOrEmpty(userName))
+            {
+                // Handle the case where no user is logged in
+                throw new Exception("User not logged in");
+            }
+
+            // Check if the user exists in the database
+            var userFound = await userDocumentsDbContext.Users
+                                              .FirstOrDefaultAsync(u => u.Username.ToLower().Equals(userName.ToLower()));
+
+            // User is logged in and found
+            if (userFound != null)
+            {
+                var bucketName = configuration["AWS:BucketName"];
+                var uploadTasks = new List<Task<Document?>>();
+
+                // Loop through each file in the formCollection
+                foreach (var file in formCollection.Files)
+                {
+                    using (var memoryStream = new MemoryStream())
+                    {
+                        // Copy the contents of the file to the memory stream
+                        await file.CopyToAsync(memoryStream);
+                        memoryStream.Position = 0; // Reset the stream position for reading
+
+                        // Create a custom IFormFile using CustomFormFile
+                        var customFile = new CustomFormFile(file.FileName, file.Length, file.ContentType, memoryStream);
+
+                        string fileName = customFile.FileName;
+                        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
+                        string extension = Path.GetExtension(fileName);
+
+                        // Ensure valid file name and extension
+                        if (string.IsNullOrEmpty(fileNameWithoutExtension) || string.IsNullOrEmpty(extension))
+                        {
+                            continue;
+                        }
+
+                        // Initialize the document object
+                        var doc = new Document
+                        {
+                            UserId = userFound.Id,
+                            Size = customFile.Length,
+                            FileExtension = extension,
+                            FileName = fileName,
+                            Expense = await expenseRepository.GetExpenseByIdAsync(expenseId)
+                        };
+
+                        string newKey = $"Documents/{userName}/{fileName}";
+
+                        // Upload to S3
+                        var putRequest = new PutObjectRequest
+                        {
+                            BucketName = bucketName,
+                            Key = newKey,
+                            InputStream = customFile.OpenReadStream(), // Use the IFormFile stream
+                            ContentType = customFile.ContentType
+                        };
+
+                        // Execute the S3 upload
+                        Amazon.S3.Model.PutObjectResponse resp = await s3Client.PutObjectAsync(putRequest);
+
+                        // Generate S3 URL (Optional)
+                        var s3Url = $"https://{bucketName}.s3.amazonaws.com/{newKey}";
+                        doc.S3Url = s3Url;
+                        doc.ETag = resp.ETag;
+                        doc.VersionId = resp.VersionId;
+
+                        // Store file details in the local database
+                        await UploadDocumentDetailsAsync(doc);
+                    }
+                }
+
+                // If no documents are uploaded successfully, you can return null or handle accordingly
+                return null;
+            }
+            else
+            {
+                throw new Exception("Unable to upload document, Invalid user");
+            }
+        }
         public async Task<Document?> UploadFileAsync(DocumentDto documentDto,IFormFile file)
         {
             // Retrieve the current logged-in user from the HttpContext

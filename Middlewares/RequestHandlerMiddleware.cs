@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using System.Text;
 using System.Net;
 using Expense.API.Models.Domain;
+using Microsoft.EntityFrameworkCore;
 
 namespace Expense.API.Middlewares
 {
@@ -19,6 +20,14 @@ namespace Expense.API.Middlewares
 		}
         public async Task InvokeAsync(HttpContext httpContext)
         {
+            var logoutPath = "/api/Auth/Logout";
+
+            // Check if the current request path matches the login or register routes
+            if (httpContext.Request.Path.Value.Equals(logoutPath, StringComparison.OrdinalIgnoreCase))
+            {
+                await next(httpContext);
+                return;
+            }
             await DecryptData(httpContext);
             await next(httpContext);
 

@@ -5,6 +5,8 @@ using Expense.API.Models.Domain;
 using Expense.API.Models.DTO;
 using Expense.API.Repositories.Expense;
 using ExpenseModel = Expense.API.Models.Domain.Expense;
+using Newtonsoft.Json;
+using Expense.API.Repositories.Documents;
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
 namespace Expense.API.Controllers
@@ -14,12 +16,14 @@ namespace Expense.API.Controllers
     public class ExpenseController : Controller
     {
         private readonly IExpenseRepository expenseRepository;
+        private readonly IDocumentRepository documentRespository;
         private readonly IMapper mapper;
 
-        public ExpenseController(IExpenseRepository expenseRepository, IMapper mapper)
+        public ExpenseController(IExpenseRepository expenseRepository, IMapper mapper, IDocumentRepository documentRepository)
         {
             this.mapper = mapper;
             this.expenseRepository = expenseRepository;
+            this.documentRespository = documentRepository;
         }
 
         // GET: api/values
@@ -59,11 +63,41 @@ namespace Expense.API.Controllers
                 return BadRequest(e.Message);
             }
         }
-
         // POST api/values
         [HttpPost]
+        [Route("createForm")]
+        public async Task<IActionResult> Post(string title, string description, IFormCollection files)
+        {
+
+            AddExpenseDto addExpenseDto = new AddExpenseDto();
+            addExpenseDto.Amount = 0;
+
+
+            if (title != null && description != null)
+            {
+                addExpenseDto.Description = description;
+                var expenseCreated = await expenseRepository.CreateExpenseAsync(mapper.Map<ExpenseModel>(addExpenseDto));
+                var expenseDto = mapper.Map<ExpenseDto>(expenseCreated);
+
+                if (expenseCreated != null)
+                {
+                    var expenseUser = new ExpenseUser(expenseCreated.Id, expenseCreated.CreatedById);
+                    var expenseUserLink = await expenseRepository.CreateExpenseUserAsync(expenseUser);
+                    //after expense is create upload all the docs
+                    await documentRespository.UploadFileFormAsync(files, expenseCreated.Id);
+                }
+
+            }
+                return Ok();
+
+
+        }
+        // POST api/values
+        [HttpPost]
+        [Route("create")]
         public async Task<IActionResult> Post([FromBody]AddExpenseDto addExpenseDto)
         {
+
             try
             {
                 var expenseCreated = await expenseRepository.CreateExpenseAsync(mapper.Map<ExpenseModel>(addExpenseDto));

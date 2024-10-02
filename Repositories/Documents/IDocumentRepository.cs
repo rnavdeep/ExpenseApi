@@ -11,6 +11,7 @@ namespace Expense.API.Repositories.Documents
         public Task<List<string>> GetAllDownloadableLinksAsync();
         public Task<string?> StartExtractAsync(string fileName);
         public Task<string?> StartExpenseExtractAsync(string fileName);
+        public Task<Document?> UploadFileFormAsync(IFormCollection files, Guid expenseId);
     }
 }
 

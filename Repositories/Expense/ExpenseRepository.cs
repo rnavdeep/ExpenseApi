@@ -21,11 +21,11 @@ namespace Expense.API.Repositories.Expense
         {
             // Retrieve the current logged-in user from the HttpContext
             var userName = httpContextAccessor.HttpContext?.User?.Claims
-                             .FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+                             .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
 
             //check if the user Exists -- Just In Case
             var user = await userDocumentsDbContext.Users.FirstOrDefaultAsync(
-                user => user.Email.Equals(userName)
+                user => user.Username.Equals(userName)
             );
 
             if (user != null)
