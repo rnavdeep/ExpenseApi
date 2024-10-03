@@ -87,7 +87,7 @@ namespace Expense.API.Repositories.Expense
 
             // Check if the user exists in the database
             var user = await userDocumentsDbContext.Users
-                            .FirstOrDefaultAsync(u => u.Email.Equals(userName));
+                            .FirstOrDefaultAsync(u => u.Username.Equals(userName));
 
             if (user == null)
             {

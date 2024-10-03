@@ -76,6 +76,7 @@ namespace Expense.API.Controllers
             if (title != null && description != null)
             {
                 addExpenseDto.Description = description;
+                addExpenseDto.Title = title;
                 var expenseCreated = await expenseRepository.CreateExpenseAsync(mapper.Map<ExpenseModel>(addExpenseDto));
                 var expenseDto = mapper.Map<ExpenseDto>(expenseCreated);
 

@@ -193,14 +193,14 @@ namespace Expense.API.Repositories.Documents
                             Expense = await expenseRepository.GetExpenseByIdAsync(expenseId)
                         };
 
-                        string newKey = $"Documents/{userName}/{fileName}";
+                        string newKey = $"Documents/{userName}/{expenseId.ToString()}/{fileName}";
 
                         // Upload to S3
                         var putRequest = new PutObjectRequest
                         {
                             BucketName = bucketName,
                             Key = newKey,
-                            InputStream = file.OpenReadStream(), // Use the IFormFile stream
+                            InputStream = file.OpenReadStream(),
                             ContentType = file.ContentType
                         };
 
