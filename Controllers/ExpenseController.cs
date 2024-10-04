@@ -28,12 +28,12 @@ namespace Expense.API.Controllers
 
         // GET: api/values
         [HttpGet]
+        [Route("myExpenses")]
         public async Task<IActionResult> Get()
         {
             try
             {
-                // Fetch expenses based on the given id (assuming id is a filter or related key)
-                var result = await expenseRepository.GetExpensesAsync(); // Modify your repository method accordingly
+                var result = await expenseRepository.GetExpensesAsync();
                 if (result == null || !result.Any())
                 {
                     return NotFound($"No expenses found for the logged in user");
