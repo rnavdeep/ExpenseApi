@@ -125,8 +125,22 @@ namespace Expense.API.Controllers
 
         // DELETE api/values/5
         [HttpDelete("{id}")]
-        public void Delete(int id)
+        public async Task<IActionResult> Delete(string id)
         {
+            if (!Guid.TryParse(id, out var expenseId))
+            {
+                return BadRequest("Invalid ID format.");
+            }
+            var result = await expenseRepository.RemoveExpense(expenseId);
+
+            if (result)
+            {
+                return NoContent();
+            }
+            else
+            {
+                return NotFound(); 
+            }
         }
     }
 }

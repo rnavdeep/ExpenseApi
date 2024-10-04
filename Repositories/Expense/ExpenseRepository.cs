@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
 using ExpenseModel = Expense.API.Models.Domain.Expense;
+using System;
 
 namespace Expense.API.Repositories.Expense
 {
@@ -120,6 +121,20 @@ namespace Expense.API.Repositories.Expense
             // Return the list of expenses
             return expenses;
 
+        }
+
+        public async Task<Boolean> RemoveExpense(Guid id)
+        {
+            // Find the expense
+            var expense = await userDocumentsDbContext.Expenses.FindAsync(id); 
+
+            if (expense != null)
+            {
+                userDocumentsDbContext.Expenses.Remove(expense);
+                await userDocumentsDbContext.SaveChangesAsync();
+                return true;
+            }
+            return false;
         }
     }
 }

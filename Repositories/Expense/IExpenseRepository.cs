@@ -32,6 +32,12 @@ namespace Expense.API.Repositories.Expense
 		/// <param name="expenseUser"></param>
 		/// <returns></returns>
 		public Task<ExpenseUser> CreateExpenseUserAsync(ExpenseUser expenseUser);
-	}
+        /// <summary>
+        /// Remove expense 
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public Task<Boolean> RemoveExpense(Guid id);
+    }
 }
 

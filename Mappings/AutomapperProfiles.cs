@@ -16,6 +16,7 @@ namespace Expense.API.Mappings
             CreateMap<ExpenseModel, ExpenseDto>().ReverseMap();
             // Mapping from Expense to ExpenseDto
             CreateMap<ExpenseModel, ExpenseDto>()
+                .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id.ToString()))
                 .ForMember(dest => dest.CreatedAt, opt => opt.MapFrom(src => src.CreatedAt.ToShortDateString()));
                 //.ForMember(dest => dest.DocumentUrls, opt => opt.MapFrom(src => src.Documents.Where(doc=>doc.ExpenseId.Equals(src.Id)).Select(d => d.S3Url).ToList()));
             CreateMap<ExpenseDto, ExpenseModel>();
