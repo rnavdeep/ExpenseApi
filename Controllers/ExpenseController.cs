@@ -85,7 +85,7 @@ namespace Expense.API.Controllers
                     var expenseUser = new ExpenseUser(expenseCreated.Id, expenseCreated.CreatedById);
                     var expenseUserLink = await expenseRepository.CreateExpenseUserAsync(expenseUser);
                     //after expense is create upload all the docs
-                    await documentRespository.UploadFileFormAsync(files, expenseCreated.Id);
+                    await documentRespository.UploadFileFormAsync(files, expenseCreated);
                 }
 
             }

@@ -11,6 +11,8 @@ using Document = Expense.API.Models.Domain.Document;
 using Formatting = Newtonsoft.Json.Formatting;
 using S3Object = Amazon.Textract.Model.S3Object;
 using Expense.API.Repositories.Expense;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using ExpenseModel = Expense.API.Models.Domain.Expense;
 
 namespace Expense.API.Repositories.Documents
 {
@@ -133,15 +135,18 @@ namespace Expense.API.Repositories.Documents
         }
 
 
-        public async Task<Document?> UploadDocumentDetailsAsync(Document doc)
+        public async Task<List<Document>> UploadDocumentDetailsAsync(List<Document> doc)
         {
-            await userDocumentsDbContext.Documents.AddAsync(doc);
+
+            await userDocumentsDbContext.Documents.AddRangeAsync(doc);
             await userDocumentsDbContext.SaveChangesAsync();
 
             //Assign Document to User
+            
             return doc;
+
         }
-        public async Task<Document?> UploadFileFormAsync(IFormCollection formCollection, Guid expenseId)
+        public async Task<List<Document>> UploadFileFormAsync(IFormCollection formCollection, ExpenseModel expense)
         {
             // Retrieve the current logged-in user from the HttpContext
             var userName = httpContextAccessor.HttpContext?.User?.Claims
@@ -149,7 +154,6 @@ namespace Expense.API.Repositories.Documents
 
             if (string.IsNullOrEmpty(userName))
             {
-                // Handle the case where no user is logged in
                 throw new Exception("User not logged in");
             }
 
@@ -157,7 +161,7 @@ namespace Expense.API.Repositories.Documents
             var userFound = await userDocumentsDbContext.Users
                                               .FirstOrDefaultAsync(u => u.Username.ToLower().Equals(userName.ToLower()));
 
-            // User is logged in and found
+            List<Document> documents = new List<Document>();
             if (userFound != null)
             {
                 var bucketName = configuration["AWS:BucketName"];
@@ -168,58 +172,56 @@ namespace Expense.API.Repositories.Documents
                 {
                     using (var memoryStream = new MemoryStream())
                     {
-                        // Copy the contents of the file to the memory stream
                         await file.CopyToAsync(memoryStream);
                         memoryStream.Position = 0; // Reset the stream position for reading
-
 
                         string fileName = file.FileName;
                         string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
                         string extension = Path.GetExtension(fileName);
 
-                        // Ensure valid file name and extension
                         if (string.IsNullOrEmpty(fileNameWithoutExtension) || string.IsNullOrEmpty(extension))
                         {
                             continue;
                         }
 
-                        // Initialize the document object
                         var doc = new Document
                         {
                             UserId = userFound.Id,
                             Size = file.Length,
                             FileExtension = extension,
                             FileName = fileName,
-                            Expense = await expenseRepository.GetExpenseByIdAsync(expenseId)
+                            Expense = expense,
+                            ExpenseId = expense.Id
                         };
 
-                        string newKey = $"Documents/{userName}/{expenseId.ToString()}/{fileName}";
+                        string newKey = $"Documents/{userName}/{expense.Id}/{fileName}";
 
-                        // Upload to S3
                         var putRequest = new PutObjectRequest
                         {
                             BucketName = bucketName,
                             Key = newKey,
-                            InputStream = file.OpenReadStream(),
+                            InputStream = memoryStream,  // Use memoryStream
                             ContentType = file.ContentType
                         };
 
                         // Execute the S3 upload
                         Amazon.S3.Model.PutObjectResponse resp = await s3Client.PutObjectAsync(putRequest);
 
-                        // Generate S3 URL (Optional)
-                        var s3Url = $"https://{bucketName}.s3.amazonaws.com/{newKey}";
-                        doc.S3Url = s3Url;
+                        var request = new GetPreSignedUrlRequest
+                        {
+                            BucketName = bucketName,
+                            Key = newKey,
+                            Expires = DateTime.UtcNow.AddDays(1),
+                            Verb = HttpVerb.GET
+                        };
+
+                        doc.S3Url = s3Client.GetPreSignedURL(request);
                         doc.ETag = resp.ETag;
                         doc.VersionId = resp.VersionId;
-
-                        // Store file details in the local database
-                        await UploadDocumentDetailsAsync(doc);
+                        documents.Add(doc);
                     }
                 }
-
-                // If no documents are uploaded successfully, you can return null or handle accordingly
-                return null;
+                return await UploadDocumentDetailsAsync(documents);
             }
             else
             {
@@ -288,7 +290,8 @@ namespace Expense.API.Repositories.Documents
                     doc.VersionId = resp.VersionId;
                 }
                 doc.Expense = await expenseRepository.GetExpenseByIdAsync(documentDto.ExpenseId);
-                return await UploadDocumentDetailsAsync(doc);
+                return doc;
+                //return await UploadDocumentDetailsAsync(doc);
             }
             else
             {
