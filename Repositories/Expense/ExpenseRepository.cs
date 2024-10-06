@@ -4,6 +4,7 @@ using Expense.API.Data;
 using Expense.API.Models.Domain;
 using ExpenseModel = Expense.API.Models.Domain.Expense;
 using System;
+using Expense.API.Models.DTO;
 
 namespace Expense.API.Repositories.Expense
 {
@@ -60,6 +61,14 @@ namespace Expense.API.Repositories.Expense
             }
 
             return expenseUser;
+        }
+
+        public async Task<List<DocumentDialogDto>> GetDocByExpenseId(Guid expenseId)
+        {
+            return await userDocumentsDbContext.Documents
+                .Where(doc => doc.ExpenseId.Equals(expenseId))
+                .Select(doc => new DocumentDialogDto(doc.FileName, doc.S3Url)) 
+                .ToListAsync();
         }
 
         public async Task<ExpenseModel> GetExpenseByIdAsync(Guid expenseId)

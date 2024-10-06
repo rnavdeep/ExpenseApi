@@ -49,7 +49,17 @@ namespace Expense.API.Controllers
                 return BadRequest($"An error occurred: {e.Message}");
             }
         }
-
+        // GET: api/GetDocByExpenseId
+        [HttpGet("getDocs/{id}")]
+        public async Task<IActionResult> GetDocsByExpenseId(string id)
+        {
+            if (!Guid.TryParse(id, out var expenseId))
+            {
+                return BadRequest("Invalid ID format.");
+            }
+            var result = await expenseRepository.GetDocByExpenseId(expenseId);
+            return Ok(result);
+        }
         // GET api/values/Guid
         [HttpGet("{guid}")]
         public async Task<IActionResult> Get(Guid guid)

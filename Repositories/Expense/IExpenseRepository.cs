@@ -1,5 +1,6 @@
 ﻿using System;
 using Expense.API.Models.Domain;
+using Expense.API.Models.DTO;
 using ExpenseModel = Expense.API.Models.Domain.Expense;
 
 namespace Expense.API.Repositories.Expense
@@ -19,12 +20,19 @@ namespace Expense.API.Repositories.Expense
 		/// <returns></returns>
 		public Task<ExpenseModel> GetExpenseByIdAsync(Guid expenseId);
 
-		/// <summary>
-		/// Create Expense for logged in User.
-		/// </summary>
-		/// <param name="addExpense"></param>
-		/// <returns></returns>
-		public Task<ExpenseModel> CreateExpenseAsync(ExpenseModel expense);
+        /// <summary>
+        /// Get Doc Data by Expense Id
+        /// </summary>
+        /// <param name="expenseId"></param>
+        /// <returns></returns>
+        public Task<List<DocumentDialogDto>> GetDocByExpenseId(Guid expenseId);
+
+        /// <summary>
+        /// Create Expense for logged in User.
+        /// </summary>
+        /// <param name="addExpense"></param>
+        /// <returns></returns>
+        public Task<ExpenseModel> CreateExpenseAsync(ExpenseModel expense);
 
 		/// <summary>
 		/// Add in user-expense linking table
