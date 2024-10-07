@@ -104,7 +104,7 @@ namespace Expense.API.Controllers
         // POST api/values
         [HttpPost]
         [Route("createForm")]
-        public async Task<IActionResult> Post(string title, string description, IFormCollection files)
+        public async Task<IActionResult> Post(string title, string description)
         {
 
             AddExpenseDto addExpenseDto = new AddExpenseDto();

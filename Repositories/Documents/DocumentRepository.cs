@@ -660,18 +660,23 @@ namespace Expense.API.Repositories.Documents
             try
             {
 
-                var docLocalDb = await userDocumentsDbContext.Documents.FirstOrDefaultAsync();
+                var docLocalDb = await userDocumentsDbContext.Documents.FirstOrDefaultAsync(doc=>doc.Id.Equals(docId));
                 var bucketName = configuration["AWS:BucketName"];
-                string key = $"Documents/{userName}/{docLocalDb.ExpenseId}/{docLocalDb.FileName}";
-                var deleteRequest = new DeleteObjectRequest
+                if (docLocalDb != null)
                 {
-                    BucketName = bucketName,
-                    Key = key
-                };
+                    string key = $"Documents/{userName}/{docLocalDb.ExpenseId}/{docLocalDb.FileName}";
+                    var deleteRequest = new DeleteObjectRequest
+                    {
+                        BucketName = bucketName,
+                        Key = key
+                    };
 
-                await s3Client.DeleteObjectAsync(deleteRequest);
-                userDocumentsDbContext.Remove(docLocalDb);
-                return true;
+                    var resp = await s3Client.DeleteObjectAsync(deleteRequest);
+                    userDocumentsDbContext.Documents.Remove(docLocalDb);
+                    await userDocumentsDbContext.SaveChangesAsync();
+                    return true;
+                }
+                throw new Exception("Doc not found");
 
             }
             catch(Exception e)
