@@ -25,7 +25,7 @@ namespace Expense.API.Repositories.Expense
         /// </summary>
         /// <param name="expenseId"></param>
         /// <returns></returns>
-        public Task<List<DocumentDialogDto>> GetDocByExpenseId(Guid expenseId);
+        public Task<List<Document>> GetDocByExpenseId(Guid expenseId);
 
         /// <summary>
         /// Create Expense for logged in User.

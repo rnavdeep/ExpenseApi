@@ -63,11 +63,10 @@ namespace Expense.API.Repositories.Expense
             return expenseUser;
         }
 
-        public async Task<List<DocumentDialogDto>> GetDocByExpenseId(Guid expenseId)
+        public async Task<List<Document>> GetDocByExpenseId(Guid expenseId)
         {
             return await userDocumentsDbContext.Documents
                 .Where(doc => doc.ExpenseId.Equals(expenseId))
-                .Select(doc => new DocumentDialogDto(doc.FileName, doc.S3Url)) 
                 .ToListAsync();
         }
 

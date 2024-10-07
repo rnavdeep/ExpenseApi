@@ -49,6 +49,7 @@ namespace Expense.API.Controllers
                 return BadRequest($"An error occurred: {e.Message}");
             }
         }
+
         // GET: api/GetDocByExpenseId
         [HttpGet("getDocs/{id}")]
         public async Task<IActionResult> GetDocsByExpenseId(string id)
@@ -58,7 +59,34 @@ namespace Expense.API.Controllers
                 return BadRequest("Invalid ID format.");
             }
             var result = await expenseRepository.GetDocByExpenseId(expenseId);
-            return Ok(result);
+            var resultDto = mapper.Map<List<UploadedDocumentDto>>(result);
+            return Ok(resultDto);
+        }
+
+        // POST api/values
+        [HttpPost]
+        [Route("uploadDoc")]
+        public async Task<IActionResult> Post(string id, IFormFile file)
+        {
+
+            if (!Guid.TryParse(id, out var expenseId))
+            {
+                return BadRequest("Invalid ID format.");
+            }
+            try
+            {
+                var result = await documentRespository.UploadDocumentByExpenseId(expenseId, file);
+                var resultDto= mapper.Map<UploadedDocumentDto>(result);
+                return Ok(resultDto);
+
+            }
+            catch(Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+
+
+
         }
         // GET api/values/Guid
         [HttpGet("{guid}")]
@@ -95,12 +123,13 @@ namespace Expense.API.Controllers
                     var expenseUser = new ExpenseUser(expenseCreated.Id, expenseCreated.CreatedById);
                     var expenseUserLink = await expenseRepository.CreateExpenseUserAsync(expenseUser);
                     //after expense is create upload all the docs
-                    await documentRespository.UploadFileFormAsync(files, expenseCreated);
+                    //await documentRespository.UploadFileFormAsync(files, expenseCreated);
+                    return Ok(expenseDto);
+
                 }
 
             }
-                return Ok();
-
+            return BadRequest("Not created expense");
 
         }
         // POST api/values
