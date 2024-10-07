@@ -5,6 +5,10 @@ using Expense.API.Models.Domain;
 using Expense.API.Repositories.Users;
 using Expense.API.Repositories.AuthToken;
 using Expense.API.Models.DTO;
+using Newtonsoft.Json;
+using Expense.API.Repositories.Redis;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
@@ -19,89 +23,163 @@ namespace Expense.API.Controllers
         private readonly ITokenRepository tokenRepository;
         private readonly IUserRepository userRepository;
         private readonly IMapper mapper;
+        private readonly IRedisRepository redisRepository;
 
-        public AuthController(UserManager<IdentityUser> userManager, ITokenRepository tokenRepository, IMapper mapper, IUserRepository userRepository)
+        public AuthController(UserManager<IdentityUser> userManager, ITokenRepository tokenRepository, IMapper mapper, IUserRepository userRepository,
+            IRedisRepository redisRepository)
         {
             this.userManager = userManager;
             this.tokenRepository = tokenRepository;
             this.mapper = mapper;
             this.userRepository = userRepository;
+            this.redisRepository = redisRepository;
+        }
+        // Check if token is valid
+        [HttpGet("checkSession")]
+        public async Task<IActionResult> CheckSession()
+        {
+            var sessionData = new SessionDataDto(
+                HttpContext.User.Identity.IsAuthenticated
+                    ? HttpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value
+                    : string.Empty, 
+                HttpContext.User.Identity.IsAuthenticated 
+            );
+
+            return Ok(sessionData); 
         }
         // POST api/Auth/Register
         [HttpPost]
         [Route("Register")]
-        public async Task<IActionResult> Register([FromBody]RegisterRequestDto registerRequestDto)
+        public async Task<IActionResult> Register()
         {
-            var identityUser = new IdentityUser
+            // Retrieve the decrypted data from HttpContext
+            if (HttpContext.Items.TryGetValue("DecryptedData", out var decryptedData))
             {
-                UserName = registerRequestDto.Username,
-                Email = registerRequestDto.Username
-            };
-
-            var identityResult = await userManager.CreateAsync(identityUser, registerRequestDto.Password);
-
-            if (identityResult.Succeeded)
-            {
-                if (registerRequestDto.Roles != null && registerRequestDto.Roles.Any())
+                if(decryptedData!= null)
                 {
-                    //add roles to user
-                    identityResult = await userManager.AddToRolesAsync(identityUser, registerRequestDto.Roles);
-                    if (identityResult.Succeeded)
+                    var registerRequestDto = JsonConvert.DeserializeObject<RegisterRequestDto>((string)decryptedData);
+
+                    var identityUser = new IdentityUser
                     {
-                        var userModel = mapper.Map<User>(registerRequestDto);
-                        userModel.Email = registerRequestDto.Username;
-                        var userCreated = await userRepository.CreateAsync(userModel);
-                        if (userCreated != null)
+                        UserName = registerRequestDto.UserName,
+                        Email = registerRequestDto.Email
+                    };
+                    var ifEmailExists = await userManager.FindByEmailAsync(registerRequestDto.Email);
+                    if (ifEmailExists == null)
+                    {
+                        var identityResult = await userManager.CreateAsync(identityUser, registerRequestDto.Password);
+
+                        if (identityResult.Succeeded)
                         {
-                            return Ok(userCreated);
+                            if (registerRequestDto.Roles != null && registerRequestDto.Roles.Any())
+                            {
+                                //add roles to user
+                                identityResult = await userManager.AddToRolesAsync(identityUser, registerRequestDto.Roles);
+                                if (identityResult.Succeeded)
+                                {
+                                    // Generate password reset token
+                                    var token = await userManager.GeneratePasswordResetTokenAsync(identityUser);
+
+                                    // Create reset password link
+                                    var resetLink = Url.Action("ResetPassword", "Account",
+                                        new { userId = identityUser.Id, token = token }, Request.Scheme);
+
+                                    var userModel = mapper.Map<User>(registerRequestDto);
+                                    userModel.Email = registerRequestDto.Email;
+                                    var userCreated = await userRepository.CreateAsync(userModel);
+                                    if (userCreated != null)
+                                    {
+                                        return Ok(userCreated);
+                                    }
+                                    else
+                                    {
+                                        await userManager.DeleteAsync(identityUser);
+                                        return BadRequest("Unable to Add User to Local Db");
+                                    }
+                                }
+                            }
                         }
+                        return BadRequest(identityResult.Errors);
+
                     }
+                    return BadRequest("User with Email Already Exists");
+
                 }
             }
-            return BadRequest(identityResult.Errors);
+            return BadRequest("No data to register user");
+        }
+        [HttpPost("Logout")]
+        public IActionResult Logout()
+        {
+            Response.Cookies.Delete("jwtToken");
+            Response.Cookies.Delete(".AspNetCore.Session");
+            return Ok(new { message = "Logged out successfully" });
         }
 
         //POST /api/Auth/Login
         [HttpPost]
         [Route("Login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequestDto loginRequestDto)
+        public async Task<IActionResult> Login()
         {
-            var user = await userManager.FindByEmailAsync(loginRequestDto.Username);
-            if (user != null)
+            var response = new LoginResponseDto
             {
-                var isPasswordCorrect = await userManager.CheckPasswordAsync(user, loginRequestDto.Password);
-                if ( isPasswordCorrect == true)
+                IsLoggedIn = false, Error = string.Empty
+            };
+            // Retrieve the decrypted data from HttpContext
+            if (HttpContext.Items.TryGetValue("DecryptedData", out var decryptedData))
+            {
+                if (decryptedData != null)
                 {
+                    var loginRequestDto = JsonConvert.DeserializeObject<LoginRequestDto>((string)decryptedData);
 
-                    var roles = await userManager.GetRolesAsync(user);
-                    if (roles != null)
+                    var user = await userManager.FindByNameAsync(loginRequestDto.Username);
+                    var userInDb = user != null ? await userRepository.GetUserByEmail(user.Email) : null;
+
+                    if (user != null && userInDb != null)
                     {
-                        //Create JWT token to use for Endpoint calls
-                        var jwtToken = tokenRepository.CreateJwtToken(user, roles.ToArray());
-                        var response = new LoginResponseDto
+                        var isPasswordCorrect = await userManager.CheckPasswordAsync(user, loginRequestDto.Password);
+                        if (isPasswordCorrect == true)
                         {
-                            JwtToken = jwtToken
-                        };
-                        // Configure cookie options
-                        var cookieOptions = new CookieOptions
-                        {
-                            HttpOnly = false,   // Prevent client-side access
-                            Secure = true,     // Send cookie only over HTTPS
-                            SameSite = SameSiteMode.Strict, // Restrict to same-site requests
-                            Expires = DateTime.UtcNow.AddHours(1) // Set cookie expiration time
-                        };
 
-                        // Add JWT token to cookies
-                        Response.Cookies.Append("jwtToken", jwtToken, cookieOptions);
+                            var roles = await userManager.GetRolesAsync(user);
+                            if (roles != null)
+                            {
+                                //Create JWT token to use for Endpoint calls
+                                var jwtToken = tokenRepository.CreateJwtToken(user, roles.ToArray());
 
-                        return Ok(response);
+                                // Configure cookie options
+                                var cookieOptions = new CookieOptions
+                                {
+                                    HttpOnly = true,
+                                    Secure = false,
+                                    SameSite = SameSiteMode.Unspecified, 
+                                    Expires = DateTime.UtcNow.AddHours(1)
+                                    ,Path = "/",
 
+                                };
+
+
+                                // Add JWT token to cookies
+                                Response.Cookies.Append("jwtToken", jwtToken, cookieOptions);
+                                //Add JWT token to cache
+                                await redisRepository.StoreTokenAsync(userName: userInDb.Username, jwtToken);
+                                Console.WriteLine();
+                                HttpContext.Session.SetString("UserSession", userInDb.Username);  // Save username in session
+                                HttpContext.Session.SetString("UserId", userInDb.Id.ToString());  // Save user ID in session
+                                response.IsLoggedIn = true;
+                                return Ok(response);
+
+                            }
+                            response.Error = ("User must have a role assigned to Login");
+                            return BadRequest(response);
+                        }
                     }
-
-                    return Ok("Login Success");
+                    response.Error = ("Username or Password Incorrect");
+                    return BadRequest(response);
                 }
             }
-            return BadRequest("Username or Password Incorrect");
+            response.Error = ("Provide Data");
+            return BadRequest(response);
         }
 
 

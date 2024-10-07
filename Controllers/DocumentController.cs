@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Expense.API.Models.DTO;
 using Expense.API.Repositories.Documents;
 using Expense.API.Repositories.Users;
+using Expense.API.Repositories.Expense;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -137,6 +138,25 @@ namespace Expense.API.Controllers
             catch (Exception e)
             {
                 return BadRequest(e.Message);
+            }
+        }
+        // DELETE api/values/5
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(string id)
+        {
+            if (!Guid.TryParse(id, out var docId))
+            {
+                return BadRequest("Invalid ID format.");
+            }
+            var result = await documentRepository.DeleteDocumentByDocId(docId);
+
+            if (result)
+            {
+                return NoContent();
+            }
+            else
+            {
+                return NotFound();
             }
         }
     }

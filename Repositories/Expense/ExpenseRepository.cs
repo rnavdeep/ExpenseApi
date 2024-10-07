@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
 using ExpenseModel = Expense.API.Models.Domain.Expense;
+using System;
+using Expense.API.Models.DTO;
 
 namespace Expense.API.Repositories.Expense
 {
@@ -21,11 +23,11 @@ namespace Expense.API.Repositories.Expense
         {
             // Retrieve the current logged-in user from the HttpContext
             var userName = httpContextAccessor.HttpContext?.User?.Claims
-                             .FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+                             .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
 
             //check if the user Exists -- Just In Case
             var user = await userDocumentsDbContext.Users.FirstOrDefaultAsync(
-                user => user.Email.Equals(userName)
+                user => user.Username.Equals(userName)
             );
 
             if (user != null)
@@ -61,6 +63,13 @@ namespace Expense.API.Repositories.Expense
             return expenseUser;
         }
 
+        public async Task<List<Document>> GetDocByExpenseId(Guid expenseId)
+        {
+            return await userDocumentsDbContext.Documents
+                .Where(doc => doc.ExpenseId.Equals(expenseId))
+                .ToListAsync();
+        }
+
         public async Task<ExpenseModel> GetExpenseByIdAsync(Guid expenseId)
         {
             // Retrieve the current logged-in user from the HttpContext
@@ -81,43 +90,59 @@ namespace Expense.API.Repositories.Expense
 
         public async Task<List<ExpenseModel>> GetExpensesAsync()
         {
-            // Retrieve the current logged-in user's email from the HttpContext
-            var userName = httpContextAccessor.HttpContext?.User?.Claims
+            // Retrieve the current logged-in user's email from the HttpContext -- email is always unique
+            var emailUser = httpContextAccessor.HttpContext?.User?.Claims
                              .FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
 
             // Check if the user exists in the database
             var user = await userDocumentsDbContext.Users
-                            .FirstOrDefaultAsync(u => u.Email.Equals(userName));
+                            .FirstOrDefaultAsync(u => u.Email.Equals(emailUser));
 
             if (user == null)
             {
-                // Handle case where the user does not exist
+                // Handle case where the user does not exist -- can not return expenses
                 throw new Exception("Invalid User"); 
             }
 
-            // Retrieve the ExpenseUsers entries related to the current user
-            var expenseUsers = await userDocumentsDbContext.ExpenseUsers
-                                .Where(eu => eu.UserId == user.Id)
-                                .ToListAsync();
-
-            // Initialize a list to store the related expenses
-            var expenses = new List<ExpenseModel>();
-
-            // Loop over the list of expenseUsers and fetch each related expense
-            foreach (var expenseUser in expenseUsers)
-            {
-                var expense = await userDocumentsDbContext.Expenses
-                                   .FirstOrDefaultAsync(e => e.Id == expenseUser.ExpenseId);
-
-                if (expense != null)
-                {
-                    expenses.Add(expense);
-                }
-            }
+            // list of expenses --- to apply pagination/filter by for search in future
+            List<ExpenseModel> expenses = await userDocumentsDbContext.Expenses
+                .Where(expense => expense.CreatedById == user.Id)
+                .GroupJoin(userDocumentsDbContext.Documents,
+                           expense => expense.Id,
+                           document => document.ExpenseId,
+                           (expense, documents) => new ExpenseModel
+                           {
+                               Id = expense.Id,
+                               Amount = expense.Amount,
+                               Documents = documents.Select(document => new Document
+                               {
+                                   Id = document.Id,
+                                   S3Url = document.S3Url,
+                                   FileName = document.FileName
+                               }).ToList(),
+                               CreatedAt = expense.CreatedAt,
+                               Title = expense.Title,
+                               Description = expense.Description
+                           })
+                .ToListAsync();
 
             // Return the list of expenses
             return expenses;
 
+        }
+
+        public async Task<Boolean> RemoveExpense(Guid id)
+        {
+            // Find the expense
+            var expense = await userDocumentsDbContext.Expenses.FindAsync(id); 
+
+            if (expense != null)
+            {
+                userDocumentsDbContext.Expenses.Remove(expense);
+                await userDocumentsDbContext.SaveChangesAsync();
+                return true;
+            }
+            return false;
         }
     }
 }

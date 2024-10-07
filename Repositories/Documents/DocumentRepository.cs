@@ -11,6 +11,10 @@ using Document = Expense.API.Models.Domain.Document;
 using Formatting = Newtonsoft.Json.Formatting;
 using S3Object = Amazon.Textract.Model.S3Object;
 using Expense.API.Repositories.Expense;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using ExpenseModel = Expense.API.Models.Domain.Expense;
+using Expense.API.Models.Domain;
+using Microsoft.AspNetCore.Http;
 
 namespace Expense.API.Repositories.Documents
 {
@@ -22,6 +26,7 @@ namespace Expense.API.Repositories.Documents
         private readonly UserDocumentsDbContext userDocumentsDbContext;
         private readonly IAmazonTextract amazonTextract;
         private readonly IExpenseRepository expenseRepository;
+        
         public DocumentRepository(IConfiguration configuration, IAmazonS3 amazonS3, IHttpContextAccessor httpContextAccessor
             ,UserDocumentsDbContext userDocumentsDbContext, IAmazonTextract amazonTextract, IExpenseRepository expenseRepository)
 		{
@@ -132,16 +137,111 @@ namespace Expense.API.Repositories.Documents
             return null;
         }
 
-
-        public async Task<Document?> UploadDocumentDetailsAsync(Document doc)
+        public async Task<Document> UploadDocumentDetailsAsync(Document doc)
         {
+
             await userDocumentsDbContext.Documents.AddAsync(doc);
             await userDocumentsDbContext.SaveChangesAsync();
 
             //Assign Document to User
+
             return doc;
+
         }
 
+        public async Task<List<Document>> UploadDocumentDetailsAsync(List<Document> doc)
+        {
+
+            await userDocumentsDbContext.Documents.AddRangeAsync(doc);
+            await userDocumentsDbContext.SaveChangesAsync();
+
+            //Assign Document to User
+            
+            return doc;
+
+        }
+        public async Task<List<Document>> UploadFileFormAsync(IFormCollection formCollection, ExpenseModel expense)
+        {
+            // Retrieve the current logged-in user from the HttpContext
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+                                 .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userName))
+            {
+                throw new Exception("User not logged in");
+            }
+
+            // Check if the user exists in the database
+            var userFound = await userDocumentsDbContext.Users
+                                              .FirstOrDefaultAsync(u => u.Username.ToLower().Equals(userName.ToLower()));
+
+            List<Document> documents = new List<Document>();
+            if (userFound != null)
+            {
+                var bucketName = configuration["AWS:BucketName"];
+                var uploadTasks = new List<Task<Document?>>();
+
+                // Loop through each file in the formCollection
+                foreach (var file in formCollection.Files)
+                {
+                    using (var memoryStream = new MemoryStream())
+                    {
+                        await file.CopyToAsync(memoryStream);
+                        memoryStream.Position = 0; // Reset the stream position for reading
+
+                        string fileName = file.FileName;
+                        string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
+                        string extension = Path.GetExtension(fileName);
+
+                        if (string.IsNullOrEmpty(fileNameWithoutExtension) || string.IsNullOrEmpty(extension))
+                        {
+                            continue;
+                        }
+
+                        var doc = new Document
+                        {
+                            UserId = userFound.Id,
+                            Size = file.Length,
+                            FileExtension = extension,
+                            FileName = fileName,
+                            Expense = expense,
+                            ExpenseId = expense.Id
+                        };
+
+                        string newKey = $"Documents/{userName}/{expense.Id}/{fileName}";
+
+                        var putRequest = new PutObjectRequest
+                        {
+                            BucketName = bucketName,
+                            Key = newKey,
+                            InputStream = memoryStream,  // Use memoryStream
+                            ContentType = file.ContentType
+                        };
+
+                        // Execute the S3 upload
+                        Amazon.S3.Model.PutObjectResponse resp = await s3Client.PutObjectAsync(putRequest);
+
+                        var request = new GetPreSignedUrlRequest
+                        {
+                            BucketName = bucketName,
+                            Key = newKey,
+                            Expires = DateTime.UtcNow.AddDays(1),
+                            Verb = HttpVerb.GET
+                        };
+
+                        doc.S3Url = s3Client.GetPreSignedURL(request);
+                        doc.ETag = resp.ETag;
+                        doc.VersionId = resp.VersionId;
+                        documents.Add(doc);
+                    }
+                }
+                return await UploadDocumentDetailsAsync(documents);
+            }
+            else
+            {
+                throw new Exception("Unable to upload document, Invalid user");
+            }
+        }
         public async Task<Document?> UploadFileAsync(DocumentDto documentDto,IFormFile file)
         {
             // Retrieve the current logged-in user from the HttpContext
@@ -204,7 +304,8 @@ namespace Expense.API.Repositories.Documents
                     doc.VersionId = resp.VersionId;
                 }
                 doc.Expense = await expenseRepository.GetExpenseByIdAsync(documentDto.ExpenseId);
-                return await UploadDocumentDetailsAsync(doc);
+                return doc;
+                //return await UploadDocumentDetailsAsync(doc);
             }
             else
             {
@@ -468,6 +569,119 @@ namespace Expense.API.Repositories.Documents
             else
             {
                 throw new Exception($"User Not Found");
+            }
+        }
+
+        public async Task<Document> UploadDocumentByExpenseId(Guid expenseId, IFormFile file)
+        {
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+                                  .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userName))
+            {
+                throw new Exception("User not logged in");
+            }
+
+            // Check if the user exists in the database
+            var userFound = await userDocumentsDbContext.Users
+                                              .FirstOrDefaultAsync(u => u.Username.ToLower().Equals(userName.ToLower()));
+            // Check if the Expense exists in the database
+            var expense = await userDocumentsDbContext.Expenses.FirstOrDefaultAsync(e => e.Id.Equals(expenseId));
+            if (userFound != null && expense !=null)
+            {
+                var bucketName = configuration["AWS:BucketName"];
+                using (var memoryStream = new MemoryStream())
+                {
+                    await file.CopyToAsync(memoryStream);
+                    memoryStream.Position = 0; // Reset the stream position for reading
+
+                    string fileName = file.FileName;
+                    string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(fileName);
+                    string extension = Path.GetExtension(fileName);
+
+                    if (string.IsNullOrEmpty(fileNameWithoutExtension) || string.IsNullOrEmpty(extension))
+                    {
+                        throw new Exception("U fked up");
+                    }
+
+                    var doc = new Document
+                    {
+                        UserId = userFound.Id,
+                        Size = file.Length,
+                        FileExtension = extension,
+                        FileName = fileName,
+                        Expense = expense,
+                        ExpenseId = expense.Id
+                    };
+
+                    string newKey = $"Documents/{userName}/{expense.Id}/{fileName}";
+
+                    var putRequest = new PutObjectRequest
+                    {
+                        BucketName = bucketName,
+                        Key = newKey,
+                        InputStream = memoryStream,  // Use memoryStream
+                        ContentType = file.ContentType
+                    };
+
+                    // Execute the S3 upload
+                    Amazon.S3.Model.PutObjectResponse resp = await s3Client.PutObjectAsync(putRequest);
+
+                    var request = new GetPreSignedUrlRequest
+                    {
+                        BucketName = bucketName,
+                        Key = newKey,
+                        Expires = DateTime.UtcNow.AddDays(1),
+                        Verb = HttpVerb.GET
+                    };
+
+                    doc.S3Url = s3Client.GetPreSignedURL(request);
+                    doc.ETag = resp.ETag;
+                    doc.VersionId = resp.VersionId;
+                    return await UploadDocumentDetailsAsync(doc);
+
+                }
+            }
+            else
+            {
+                throw new Exception("Unable to upload document, Invalid user");
+            }
+        }
+
+        public async Task<bool> DeleteDocumentByDocId(Guid docId)
+        {
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+                                            .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userName))
+            {
+                throw new Exception("User not logged in");
+            }
+            try
+            {
+
+                var docLocalDb = await userDocumentsDbContext.Documents.FirstOrDefaultAsync(doc=>doc.Id.Equals(docId));
+                var bucketName = configuration["AWS:BucketName"];
+                if (docLocalDb != null)
+                {
+                    string key = $"Documents/{userName}/{docLocalDb.ExpenseId}/{docLocalDb.FileName}";
+                    var deleteRequest = new DeleteObjectRequest
+                    {
+                        BucketName = bucketName,
+                        Key = key
+                    };
+
+                    var resp = await s3Client.DeleteObjectAsync(deleteRequest);
+                    userDocumentsDbContext.Documents.Remove(docLocalDb);
+                    await userDocumentsDbContext.SaveChangesAsync();
+                    return true;
+                }
+                throw new Exception("Doc not found");
+
+            }
+            catch(Exception e)
+            {
+                throw new Exception(e.Message);
             }
         }
     }

@@ -1,5 +1,6 @@
 ﻿using System;
 using Expense.API.Models.Domain;
+using Expense.API.Models.DTO;
 using ExpenseModel = Expense.API.Models.Domain.Expense;
 
 namespace Expense.API.Repositories.Expense
@@ -19,12 +20,19 @@ namespace Expense.API.Repositories.Expense
 		/// <returns></returns>
 		public Task<ExpenseModel> GetExpenseByIdAsync(Guid expenseId);
 
-		/// <summary>
-		/// Create Expense for logged in User.
-		/// </summary>
-		/// <param name="addExpense"></param>
-		/// <returns></returns>
-		public Task<ExpenseModel> CreateExpenseAsync(ExpenseModel expense);
+        /// <summary>
+        /// Get Doc Data by Expense Id
+        /// </summary>
+        /// <param name="expenseId"></param>
+        /// <returns></returns>
+        public Task<List<Document>> GetDocByExpenseId(Guid expenseId);
+
+        /// <summary>
+        /// Create Expense for logged in User.
+        /// </summary>
+        /// <param name="addExpense"></param>
+        /// <returns></returns>
+        public Task<ExpenseModel> CreateExpenseAsync(ExpenseModel expense);
 
 		/// <summary>
 		/// Add in user-expense linking table
@@ -32,6 +40,12 @@ namespace Expense.API.Repositories.Expense
 		/// <param name="expenseUser"></param>
 		/// <returns></returns>
 		public Task<ExpenseUser> CreateExpenseUserAsync(ExpenseUser expenseUser);
-	}
+        /// <summary>
+        /// Remove expense 
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public Task<Boolean> RemoveExpense(Guid id);
+    }
 }
 

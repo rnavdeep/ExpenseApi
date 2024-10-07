@@ -1,7 +1,8 @@
-﻿using System;
-using System.Net;
+﻿using System.Net;
 using System.Text;
-using Microsoft.EntityFrameworkCore;
+using Expense.API.Models.Domain;
+using Expense.API.Repositories.Request;
+using Newtonsoft.Json;
 
 namespace Expense.API.Middlewares
 {
@@ -9,7 +10,9 @@ namespace Expense.API.Middlewares
 	{
 		private readonly ILogger<ExceptionHandlerMiddleware> logger;
 		private readonly RequestDelegate next;
-		public ExceptionHandlerMiddleware(ILogger<ExceptionHandlerMiddleware> logger, RequestDelegate next)
+
+        public ExceptionHandlerMiddleware(ILogger<ExceptionHandlerMiddleware> logger,
+            RequestDelegate next)
 		{
 			this.logger = logger;
 			this.next = next;
@@ -50,7 +53,7 @@ namespace Expense.API.Middlewares
 			}
             
 		}
-
+        
         private async Task LogResponse(HttpContext context, MemoryStream responseBody, Stream originalResponseBody)
         {
             var responseContent = new StringBuilder();
