@@ -20,17 +20,19 @@ namespace Expense.API.Middlewares
 		}
         public async Task InvokeAsync(HttpContext httpContext)
         {
-            var logoutPath = "/api/Auth/Logout";
+            var register = "/api/Auth/Register";
+            var login = "/api/Auth/Login";
+            //var logoutPath = "/api/Auth/Logout";
+
 
             // Check if the current request path matches the login or register routes
-            if (httpContext.Request.Path.Value.Equals(logoutPath, StringComparison.OrdinalIgnoreCase))
+            if (httpContext.Request.Path.Value.Equals(login, StringComparison.OrdinalIgnoreCase) || httpContext.Request.Path.Value.Equals(register, StringComparison.OrdinalIgnoreCase))
             {
+                await DecryptData(httpContext);
                 await next(httpContext);
                 return;
             }
-            await DecryptData(httpContext);
             await next(httpContext);
-
         }
         private async Task DecryptData(HttpContext context)
         {

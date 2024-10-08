@@ -157,10 +157,27 @@ namespace Expense.API.Controllers
         }
 
         // PUT api/values/5
-        [HttpPut("{id}")]
-        public void Put(int id, [FromBody]string value)
+        [HttpPut]
+        [Route("updateExpense/{id}")]
+        public async Task<IActionResult> Put(string id, [FromBody] UpdateExpenseDto updateExpenseDto)
         {
+            if(id != updateExpenseDto.Id)
+            {
+                return BadRequest("You messed up");
+            }
+            try
+            {
+                var result = await expenseRepository.UpdateExpenseAsync(updateExpenseDto);
+
+                var resultDto = mapper.Map<ExpenseDto>(result);
+                return Ok(resultDto);
+            }
+            catch (Exception e)
+            {
+                return StatusCode(500, e.Message);
+            }
         }
+
 
         // DELETE api/values/5
         [HttpDelete("{id}")]

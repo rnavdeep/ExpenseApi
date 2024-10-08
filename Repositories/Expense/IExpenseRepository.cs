@@ -46,6 +46,14 @@ namespace Expense.API.Repositories.Expense
         /// <param name="id"></param>
         /// <returns></returns>
         public Task<Boolean> RemoveExpense(Guid id);
+
+        /// <summary>
+        /// Update expense 
+        /// </summary>
+        /// <param name="updateExpenseDto"></param>
+        /// <returns></returns>
+        public Task<ExpenseModel> UpdateExpenseAsync(UpdateExpenseDto updateExpenseDto);
+
     }
 }
 

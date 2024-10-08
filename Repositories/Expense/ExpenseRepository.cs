@@ -144,6 +144,21 @@ namespace Expense.API.Repositories.Expense
             }
             return false;
         }
+
+        public async Task<ExpenseModel> UpdateExpenseAsync(UpdateExpenseDto updateExpenseDto)
+        {
+            var expense = await userDocumentsDbContext.Expenses.FirstOrDefaultAsync(exp=>exp.Id.ToString().Equals(updateExpenseDto.Id));
+
+            if (expense != null)
+            {
+
+                expense.Title = updateExpenseDto.Title;
+                expense.Description = updateExpenseDto.Description;
+                await userDocumentsDbContext.SaveChangesAsync();
+                return expense;
+            }
+            throw new Exception("Update Failed, Expense Not found");
+        }
     }
 }
 
