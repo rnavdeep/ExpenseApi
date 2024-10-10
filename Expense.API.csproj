@@ -60,11 +60,17 @@
     <Folder Include="Repositories\Request\" />
     <Folder Include="Repositories\Redis\" />
     <Folder Include="Configurations\" />
+    <Folder Include="Repositories\Background\" />
   </ItemGroup>
   <ItemGroup>
     <None Remove="Models\Domain\Request\" />
     <None Remove="Repositories\Request\" />
     <None Remove="Repositories\Redis\" />
     <None Remove="Configurations\" />
+    <None Remove="Repositories\Background\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Models\Domain\Expense\DocumentResult.cs" />
+    <Compile Remove="Repositories\Background\IBackgroundPollingService.cs" />
   </ItemGroup>
 </Project>

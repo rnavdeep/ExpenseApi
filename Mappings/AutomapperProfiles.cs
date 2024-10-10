@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text.Json;
 using AutoMapper;
 using Expense.API.Models.Domain;
 using Expense.API.Models.DTO;
@@ -7,7 +8,7 @@ namespace Expense.API.Mappings
 {
 	public class AutomapperProfiles : Profile
 	{
-		public AutomapperProfiles()
+        public AutomapperProfiles()
 		{
             CreateMap<User, RegisterRequestDto>().ReverseMap();
             CreateMap<User, UserDto>().ReverseMap();
@@ -24,6 +25,7 @@ namespace Expense.API.Mappings
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id.ToString()))
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.FileName.ToString()))
                 .ForMember(dest => dest.Url, opt => opt.MapFrom(src => src.S3Url.ToString()));
+            CreateMap<DocumentResult, DocumentResultDto>();
 
         }
     }
