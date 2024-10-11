@@ -37,9 +37,9 @@ namespace Expense.API.Controllers
         {
             try
             {
-                var result = await expenseAnalysis.StartExpenseExtractByDocIdAsync(expenseId, docId);
-                var resultDto = mapper.Map<DocumentResultDto>(result);
-                return Ok(resultDto);
+                //var result = await expenseAnalysis.StartExpenseExtractByDocIdAsync(expenseId, docId);
+                //var resultDto = mapper.Map<DocumentResultDto>(result);
+                return Ok();
             }
             catch (Exception e)
             {

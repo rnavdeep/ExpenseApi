@@ -59,8 +59,7 @@ namespace Expense.API.Controllers
                 return BadRequest("Invalid ID format.");
             }
             var result = await expenseRepository.GetDocByExpenseId(expenseId);
-            var resultDto = mapper.Map<List<UploadedDocumentDto>>(result);
-            return Ok(resultDto);
+            return Ok(result);
         }
 
         // POST api/values

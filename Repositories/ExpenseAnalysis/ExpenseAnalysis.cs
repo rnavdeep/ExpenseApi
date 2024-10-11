@@ -5,10 +5,12 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.Textract;
 using Amazon.Textract.Model;
+using Azure;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 using DocumentModel = Expense.API.Models.Domain.Document;
 using Formatting = Newtonsoft.Json.Formatting;
 using S3Object = Amazon.Textract.Model.S3Object;
@@ -106,6 +108,19 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             return jsonResult;
         }
 
+        public async Task StoreResults(GetExpenseAnalysisResponse getExpenseAnalysisResponse, DocumentJobResult documentJobResult, byte status)
+        {
+            documentJobResult.Total = 0;
+            documentJobResult.ResultCreatedAt = DateTime.UtcNow;
+            documentJobResult.ColumnNames = BuildColumnJson(getExpenseAnalysisResponse.ExpenseDocuments[0].LineItemGroups[0].LineItems[0]);
+            documentJobResult.SummaryFields = BuildSummaryFieldsJson(getExpenseAnalysisResponse.ExpenseDocuments[0]);
+            documentJobResult.ResultLineItems = BuildLineItemJson(getExpenseAnalysisResponse.ExpenseDocuments);
+            documentJobResult.Status = status;
+            //await userDocumentsDbContext.DocumentJobResults.Up(result);
+            await userDocumentsDbContext.SaveChangesAsync();
+
+            //return result;
+        }
         public async Task<List<ExpenseDocumentResult>> StartExpenseExtractAsync(Guid expenseId)
         {
             string bucketName = configuration["AWS:BucketName"];
@@ -205,88 +220,88 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             return resultList;
         }
 
-        public async Task<DocumentResult> StartExpenseExtractByDocIdAsync(Guid expenseId, Guid docId)
-        {
-            string bucketName = configuration["AWS:BucketName"];
-            var userName = httpContextAccessor.HttpContext?.User?.Claims
-                         .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        //public async Task<DocumentResult> StartExpenseExtractByDocIdAsync(Guid expenseId, Guid docId)
+        //{
+        //    string bucketName = configuration["AWS:BucketName"];
+        //    var userName = httpContextAccessor.HttpContext?.User?.Claims
+        //                 .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
 
-            if (string.IsNullOrEmpty(userName))
-            {
-                throw new Exception("User not found.");
-            }
+        //    if (string.IsNullOrEmpty(userName))
+        //    {
+        //        throw new Exception("User not found.");
+        //    }
 
-            // Check if the user exists in the database
-            var userFound = await userDocumentsDbContext.Users
-                .FirstOrDefaultAsync(u => u.Username.ToLower() == userName.ToLower());
+        //    // Check if the user exists in the database
+        //    var userFound = await userDocumentsDbContext.Users
+        //        .FirstOrDefaultAsync(u => u.Username.ToLower() == userName.ToLower());
 
-            if (userFound == null)
-            {
-                throw new Exception("User does not exist.");
-            }
+        //    if (userFound == null)
+        //    {
+        //        throw new Exception("User does not exist.");
+        //    }
 
-            // Check if the expense exists for the logged-in user
-            var expenseExists = await userDocumentsDbContext.Expenses
-                .FirstOrDefaultAsync(exp => exp.Id == expenseId && exp.CreatedById == userFound.Id);
+        //    // Check if the expense exists for the logged-in user
+        //    var expenseExists = await userDocumentsDbContext.Expenses
+        //        .FirstOrDefaultAsync(exp => exp.Id == expenseId && exp.CreatedById == userFound.Id);
 
-            if (expenseExists == null)
-            {
-                throw new Exception("Expense does not exist.");
-            }
+        //    if (expenseExists == null)
+        //    {
+        //        throw new Exception("Expense does not exist.");
+        //    }
 
-            // Find all the documents related to the expense
-            DocumentModel? document = await userDocumentsDbContext.Documents
-                .Where(doc => doc.Id == docId && doc.ExpenseId == expenseId)
-                .FirstOrDefaultAsync();
+        //    // Find all the documents related to the expense
+        //    DocumentModel? document = await userDocumentsDbContext.Documents
+        //        .Where(doc => doc.Id == docId && doc.ExpenseId == expenseId)
+        //        .FirstOrDefaultAsync();
 
-            if (document != null)
-            {
-                string key = $"Documents/{userName}/{expenseId}/{document.FileName}";
-                var request = new AnalyzeExpenseRequest
-                {
-                    Document = new Amazon.Textract.Model.Document
-                    {
-                        S3Object = new S3Object
-                        {
-                            Bucket = bucketName,
-                            Name = key
-                        }
-                    }
-                };
-                try
-                {
-                    var response = await amazonTextract.AnalyzeExpenseAsync(request);
-                    var result = new DocumentResult();
+        //    if (document != null)
+        //    {
+        //        string key = $"Documents/{userName}/{expenseId}/{document.FileName}";
+        //        var request = new AnalyzeExpenseRequest
+        //        {
+        //            Document = new Amazon.Textract.Model.Document
+        //            {
+        //                S3Object = new S3Object
+        //                {
+        //                    Bucket = bucketName,
+        //                    Name = key
+        //                }
+        //            }
+        //        };
+        //        try
+        //        {
+        //            var response = await amazonTextract.AnalyzeExpenseAsync(request);
+        //            var result = new DocumentResult();
 
-                    result.ExpenseId = expenseId;
-                    result.DocumentId = docId;
-                    result.CreatedById = userFound.Id;
-                    result.Total = 0;
-                    result.CreatedAt = DateTime.UtcNow;
-                    result.ColumnNames = BuildColumnJson(response.ExpenseDocuments[0].LineItemGroups[0].LineItems[0]);
-                    result.SummaryFields = BuildSummaryFieldsJson(response.ExpenseDocuments[0]);
-                    result.ResultLineItems = BuildLineItemJson(response.ExpenseDocuments);
-                    await userDocumentsDbContext.DocumentResult.AddAsync(result);
-                    await userDocumentsDbContext.SaveChangesAsync();
+        //            //result.ExpenseId = expenseId;
+        //            //result.DocumentId = docId;
+        //            //result.CreatedById = userFound.Id;
+        //            //result.Total = 0;
+        //            //result.CreatedAt = DateTime.UtcNow;
+        //            //result.ColumnNames = BuildColumnJson(response.ExpenseDocuments[0].LineItemGroups[0].LineItems[0]);
+        //            //result.SummaryFields = BuildSummaryFieldsJson(response.ExpenseDocuments[0]);
+        //            //result.ResultLineItems = BuildLineItemJson(response.ExpenseDocuments);
+        //            //await userDocumentsDbContext.DocumentResult.AddAsync(result);
+        //            //await userDocumentsDbContext.SaveChangesAsync();
 
-                    return result;
+        //            //return result;
 
              
-                }
-                catch (AmazonTextractException textractException)
-                {
-                    throw new Exception($"AWS Textract Error: {textractException.Message}");
-                }
-            }
-            else
-            {
-                throw new Exception("Document does not exist");
+        //        }
+        //        catch (AmazonTextractException textractException)
+        //        {
+        //            throw new Exception($"AWS Textract Error: {textractException.Message}");
+        //        }
+        //    }
+        //    else
+        //    {
+        //        throw new Exception("Document does not exist");
 
-            }
+        //    }
 
 
-            throw new Exception("Not Good");
-        }
+        //    throw new Exception("Not Good");
+        //}
 
         public async Task<string> StartExpenseExtractByDocIdJobIdAsync(Guid expenseId, Guid docId)
         {
@@ -349,6 +364,9 @@ namespace Expense.API.Repositories.ExpenseAnalysis
                     documentJobResult.CreatedAt = DateTime.UtcNow;
                     documentJobResult.JobId = jobId;
                     documentJobResult.Status = 0;
+                    documentJobResult.ExpenseId = expenseId;
+                    documentJobResult.CreatedById = userFound.Id;
+                    documentJobResult.DocumentId = docId;
                     await userDocumentsDbContext.DocumentJobResults.AddAsync(documentJobResult);
                     await userDocumentsDbContext.SaveChangesAsync();
 

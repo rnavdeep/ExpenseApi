@@ -1,26 +1,34 @@
 ﻿using System;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Amazon.Textract;
 using Amazon.Textract.Model;
 using Expense.API.Data;
+using Expense.API.Models.Domain;
+using Expense.API.Repositories.ExpenseAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Expense.API.Repositories.Background
 {
-	public class TextractPollingRepository: BackgroundService, IBackgroundPollingRepository
+    public class TextractPollingRepository : BackgroundService, IBackgroundPollingRepository
     {
         private readonly IServiceProvider serviceProvider;
-        private readonly ILogger logger;
-        private readonly AmazonTextractClient amazonTextract;
-        private readonly UserDocumentsDbContext userDocumentsDbContext;
+        private readonly ILogger<TextractPollingRepository> logger;
+        private readonly IAmazonTextract amazonTextract;
 
-        public TextractPollingRepository(IServiceProvider serviceProvider, ILogger logger, AmazonTextractClient amazonTextract, UserDocumentsDbContext userDocumentsDbContext)
-		{
+        public TextractPollingRepository(IServiceProvider serviceProvider,
+                                         ILogger<TextractPollingRepository> logger,
+                                         IAmazonTextract amazonTextract)
+        {
             this.serviceProvider = serviceProvider;
             this.logger = logger;
             this.amazonTextract = amazonTextract;
-            this.userDocumentsDbContext = userDocumentsDbContext;
-		}
+        }
+
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
             logger.LogInformation("Textract polling service is starting.");
@@ -29,25 +37,26 @@ namespace Expense.API.Repositories.Background
             {
                 try
                 {
-
-                    var pendingJobs = userDocumentsDbContext.DocumentJobResults.Where(job => job.Status == 0).ToList();
-
-                    foreach (var job in pendingJobs)
+                    // Use the service provider to create a scope
+                    using (var scope = serviceProvider.CreateScope())
                     {
-                        // Poll the job
-                        var isComplete = await PollTextractJob(job.JobId);
+                        // Resolve the scoped DbContext and ExpenseAnalysis service within the scope
+                        var userDocumentsDbContext = scope.ServiceProvider.GetRequiredService<UserDocumentsDbContext>();
+                        var expenseAnalysis = scope.ServiceProvider.GetRequiredService<IExpenseAnalysis>();
 
-                        if (isComplete == 1)
+                        // Fetch all pending jobs from the database
+                        var pendingJobs = await userDocumentsDbContext.DocumentJobResults.Where(job=>job.Status == 0)
+                            .ToListAsync();
+
+                        foreach (var job in pendingJobs)
                         {
-                            // Mark job as completed in the database
-                            job.Status = 1;
-                            userDocumentsDbContext.SaveChanges();
+                            // Poll the job and update the result as necessary
+                            await PollTextractJob(job.JobId, job, userDocumentsDbContext, expenseAnalysis, stoppingToken);
                         }
                     }
-                    
 
-                    // Wait before checking again (for example, every minute)
-                    await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+                    // Wait before polling again
+                    await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
                 }
                 catch (Exception ex)
                 {
@@ -57,28 +66,37 @@ namespace Expense.API.Repositories.Background
 
             logger.LogInformation("Textract polling service is stopping.");
         }
-        public async Task<int> PollTextractJob(string jobId)
+
+        public async Task PollTextractJob(string jobId, DocumentJobResult documentJobResult,
+                                           UserDocumentsDbContext userDocumentsDbContext,
+                                           IExpenseAnalysis expenseAnalysis,
+                                           CancellationToken stoppingToken)
         {
-            var getExpenseAnalysisRequest = new GetExpenseAnalysisRequest
+            try
             {
-                JobId = jobId
-            };
-            var getExpenseAnalysisResponse = await amazonTextract.GetExpenseAnalysisAsync(getExpenseAnalysisRequest);
-            if (getExpenseAnalysisResponse.JobStatus == JobStatus.SUCCEEDED)
-            {
-                // Process and store result
+                var getExpenseAnalysisRequest = new GetExpenseAnalysisRequest
+                {
+                    JobId = jobId
+                };
 
-                // Build all the Json
+                var getExpenseAnalysisResponse = await amazonTextract.GetExpenseAnalysisAsync(getExpenseAnalysisRequest);
 
-                // Store result in DocumentResult Table
+                if (getExpenseAnalysisResponse.JobStatus == JobStatus.SUCCEEDED)
+                {
+                    // Process and store results using the expenseAnalysis service
+                    await expenseAnalysis.StoreResults(getExpenseAnalysisResponse, documentJobResult, 1);
+                }
 
-                //Update DocumentJobResult table with Status, DocumentResultId, ResultCreatedAt.
-
-                return 1;
+                // Update job status in the database after processing
+                documentJobResult.Status = 2; // Mark job as completed
+                await userDocumentsDbContext.SaveChangesAsync(stoppingToken);
             }
-
-            throw new NotImplementedException();
+            catch (Exception ex)
+            {
+                logger.LogError(ex, $"Failed to process Textract job with JobId: {jobId}");
+                documentJobResult.Status = 3; // Mark job as failed
+                await userDocumentsDbContext.SaveChangesAsync(stoppingToken);
+            }
         }
     }
 }
-

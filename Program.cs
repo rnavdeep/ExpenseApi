@@ -1,6 +1,7 @@
 ﻿using Expense.API.Data;
 using Expense.API.Mappings;
 using Expense.API.Middlewares;
+using Expense.API.Repositories.Background;
 using Microsoft.AspNetCore.Identity;
 using StackExchange.Redis;
 
@@ -39,6 +40,7 @@ builder.Services.ConfigureJwt(builder.Configuration);
 builder.Services.ConfigureSwagger();
 builder.Services.ConfigureCors();
 builder.Services.ConfigureAwsServices(builder.Configuration);
+builder.Services.AddHostedService<TextractPollingRepository>();
 
 // Configure AutoMapper and Identity
 builder.Services.AddAutoMapper(typeof(AutomapperProfiles));
