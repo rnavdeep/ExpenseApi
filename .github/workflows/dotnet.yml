@@ -45,7 +45,15 @@ jobs:
           echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
           source ~/.bashrc
 
-      # Wait for MS SQL Server to start
+      # Install dotnet-ef globally (to use migrations commands)
+      - name: Install dotnet-ef tool
+        run: dotnet tool install --global dotnet-ef
+
+      # Add dotnet-ef tool path to PATH
+      - name: Add dotnet tools to PATH
+        run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      # Wait for MS SQL Server to start (give it enough time)
       - name: Wait for MS SQL Server
         run: sleep 60
 
@@ -53,12 +61,11 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
 
-      # Add EF Core migration
-      - name: Add EF Core migration
+      # Apply EF Core migrations and update database
+      - name: Apply EF Core Migrations
         run: |
           dotnet ef migrations add ExpenseAuthMigration --context ExpenseAuthDbContext
           dotnet ef database update --context ExpenseAuthDbContext
-
           dotnet ef migrations add UserDocsMigration --context UserDocumentsDbContext
           dotnet ef database update --context UserDocumentsDbContext
 
@@ -66,6 +73,6 @@ jobs:
       - name: Build project
         run: dotnet build --no-restore
 
-      # Uncomment to run tests
+      # Uncomment to run tests (optional)
       # - name: Run tests
       #   run: dotnet test --no-build --verbosity normal
