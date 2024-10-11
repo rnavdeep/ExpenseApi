@@ -6,8 +6,9 @@ namespace Expense.API.Models.DTO
         public string Id { get; set; }
         public string Name { get; set; }
         public string Url { get; set; }
+        public byte? JobStatus { get; set; }
 
-        public UploadedDocumentDto(string id,string name, string url)
+        public UploadedDocumentDto(string id,string name, string url    )
         {
             Id = id;
             Name = name;

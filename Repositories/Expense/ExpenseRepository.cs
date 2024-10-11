@@ -63,11 +63,31 @@ namespace Expense.API.Repositories.Expense
             return expenseUser;
         }
 
-        public async Task<List<Document>> GetDocByExpenseId(Guid expenseId)
+        public async Task<List<UploadedDocumentDto>> GetDocByExpenseId(Guid expenseId)
         {
-            return await userDocumentsDbContext.Documents
-                .Where(doc => doc.ExpenseId.Equals(expenseId))
+            var result = await userDocumentsDbContext.Documents
+                .GroupJoin(
+                    userDocumentsDbContext.DocumentJobResults,
+                    doc => doc.Id,                     
+                    jobResult => jobResult.DocumentId,
+                    (doc, jobResults) => new { doc, jobResults }
+                )
+                .SelectMany(
+                    x => x.jobResults.DefaultIfEmpty(), 
+                    (x, jobResult) => new { x.doc, jobResult } 
+                )
+                .Where(x => x.doc.ExpenseId.Equals(expenseId)) 
+                .Select(result => new UploadedDocumentDto
+                {
+                    Id = result.doc.Id.ToString(), 
+                    Name = result.doc.FileName,    
+                    Url = result.doc.S3Url,       
+                    JobStatus = result.jobResult != null ? result.jobResult.Status : null 
+                })
                 .ToListAsync();
+
+
+            return result;
         }
 
         public async Task<ExpenseModel> GetExpenseByIdAsync(Guid expenseId)
@@ -143,6 +163,21 @@ namespace Expense.API.Repositories.Expense
                 return true;
             }
             return false;
+        }
+
+        public async Task<ExpenseModel> UpdateExpenseAsync(UpdateExpenseDto updateExpenseDto)
+        {
+            var expense = await userDocumentsDbContext.Expenses.FirstOrDefaultAsync(exp=>exp.Id.ToString().Equals(updateExpenseDto.Id));
+
+            if (expense != null)
+            {
+
+                expense.Title = updateExpenseDto.Title;
+                expense.Description = updateExpenseDto.Description;
+                await userDocumentsDbContext.SaveChangesAsync();
+                return expense;
+            }
+            throw new Exception("Update Failed, Expense Not found");
         }
     }
 }
