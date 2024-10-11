@@ -14,7 +14,7 @@ jobs:
 
     services:
       mssql:
-        image: mcr.microsoft.com/mssql/server:2022-latest
+        image: mcr.microsoft.com/mssql/server:2019-latest
         env:
           ACCEPT_EULA: Y
           SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
@@ -47,7 +47,7 @@ jobs:
 
       # Wait for MS SQL Server to start
       - name: Wait for MS SQL Server
-        run: sleep 15
+        run: sleep 60
 
       # Restore project dependencies
       - name: Restore dependencies
