@@ -88,13 +88,13 @@ namespace Expense.API.Repositories.Background
                 }
 
                 // Update job status in the database after processing
-                documentJobResult.Status = 2; // Mark job as completed
+                documentJobResult.Status = 1; // Mark job as completed
                 await userDocumentsDbContext.SaveChangesAsync(stoppingToken);
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, $"Failed to process Textract job with JobId: {jobId}");
-                documentJobResult.Status = 3; // Mark job as failed
+                documentJobResult.Status = 2; // Mark job as failed
                 await userDocumentsDbContext.SaveChangesAsync(stoppingToken);
             }
         }

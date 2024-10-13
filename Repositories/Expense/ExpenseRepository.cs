@@ -83,10 +83,16 @@ namespace Expense.API.Repositories.Expense
                     Name = result.doc.FileName,    
                     Url = result.doc.S3Url,       
                     JobStatus = result.jobResult != null ? result.jobResult.Status : null 
-                })
+                }).Where(result => result.JobStatus != 3)
                 .ToListAsync();
 
 
+            return result;
+        }
+
+        public async Task<DocumentJobResult?> GetDocResult(Guid expenseId, Guid docId)
+        {
+            var result =  await userDocumentsDbContext.DocumentJobResults.Where(doc => doc.ExpenseId.Equals(expenseId) && doc.DocumentId.Equals(docId)).FirstOrDefaultAsync();
             return result;
         }
 

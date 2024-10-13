@@ -1,6 +1,5 @@
 ﻿
 using AutoMapper;
-using Expense.API.Models.DTO;
 using Expense.API.Repositories.ExpenseAnalysis;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,11 +10,11 @@ namespace Expense.API.Controllers
 {
     [Route("api/[controller]")]
     [Authorize]
-    public class ExtractController : Controller
+    public class TextractController : Controller
     {
         private readonly IExpenseAnalysis expenseAnalysis;
         private readonly IMapper mapper;
-        public ExtractController(IExpenseAnalysis expenseAnalysis, IMapper mapper)
+        public TextractController(IExpenseAnalysis expenseAnalysis, IMapper mapper)
         {
             this.expenseAnalysis = expenseAnalysis;
             this.mapper = mapper;
@@ -46,7 +45,7 @@ namespace Expense.API.Controllers
                 return BadRequest(e.Message);
             }
         }
-        [HttpPost("startTextractExpDocJobId")]
+        [HttpPost("expense/{expenseId}/doc/{docId}")]
         public async Task<IActionResult> StartTextractExpDocJobIdAsync(Guid expenseId, Guid docId)
         {
             try

@@ -28,7 +28,6 @@ namespace Expense.API.Controllers
 
         // GET: api/values
         [HttpGet]
-        [Route("myExpenses")]
         public async Task<IActionResult> Get()
         {
             try
@@ -51,7 +50,7 @@ namespace Expense.API.Controllers
         }
 
         // GET: api/GetDocByExpenseId
-        [HttpGet("getDocs/{id}")]
+        [HttpGet("docs/{id}")]
         public async Task<IActionResult> GetDocsByExpenseId(string id)
         {
             if (!Guid.TryParse(id, out var expenseId))
@@ -64,7 +63,7 @@ namespace Expense.API.Controllers
 
         // POST api/values
         [HttpPost]
-        [Route("uploadDoc")]
+        [Route("{id}/uploadDoc")]
         public async Task<IActionResult> Post(string id, IFormFile file)
         {
 
@@ -87,22 +86,23 @@ namespace Expense.API.Controllers
 
 
         }
+
         // GET api/values/Guid
-        [HttpGet("{guid}")]
-        public async Task<IActionResult> Get(Guid guid)
+        [HttpGet("{id}")]
+        public async Task<IActionResult> Get(Guid id)
         {
             try
             {
-                return Ok(await expenseRepository.GetExpenseByIdAsync(guid));
+                return Ok(await expenseRepository.GetExpenseByIdAsync(id));
             }
             catch(Exception e)
             {
                 return BadRequest(e.Message);
             }
         }
+
         // POST api/values
         [HttpPost]
-        [Route("createForm")]
         public async Task<IActionResult> Post(string title, string description)
         {
 
@@ -131,33 +131,10 @@ namespace Expense.API.Controllers
             return BadRequest("Not created expense");
 
         }
-        // POST api/values
-        [HttpPost]
-        [Route("create")]
-        public async Task<IActionResult> Post([FromBody]AddExpenseDto addExpenseDto)
-        {
-
-            try
-            {
-                var expenseCreated = await expenseRepository.CreateExpenseAsync(mapper.Map<ExpenseModel>(addExpenseDto));
-                var expenseDto = mapper.Map<ExpenseDto>(expenseCreated);
-
-                if (expenseCreated != null)
-                {
-                    var expenseUser = new ExpenseUser(expenseCreated.Id, expenseCreated.CreatedById);
-                    var expenseUserLink = await expenseRepository.CreateExpenseUserAsync(expenseUser);
-                }
-                return Ok(expenseDto);
-            }
-            catch (Exception e)
-            {
-                return BadRequest(e.Message);
-            }
-        }
 
         // PUT api/values/5
         [HttpPut]
-        [Route("updateExpense/{id}")]
+        [Route("{id}")]
         public async Task<IActionResult> Put(string id, [FromBody] UpdateExpenseDto updateExpenseDto)
         {
             if(id != updateExpenseDto.Id)
@@ -177,7 +154,6 @@ namespace Expense.API.Controllers
             }
         }
 
-
         // DELETE api/values/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(string id)
@@ -196,6 +172,24 @@ namespace Expense.API.Controllers
             {
                 return NotFound(); 
             }
+        }
+
+        [Authorize]
+        [HttpGet("{expenseId}/doc/{docId}")]
+        public async Task<IActionResult> GetResults(string expenseId, string docId)
+        {
+            try
+            {
+                var result = await expenseRepository.GetDocResult(Guid.Parse(expenseId), Guid.Parse(docId));
+                var resultDto = mapper.Map<DocumentResultDto>(result);
+                return Ok(resultDto);
+
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+
         }
     }
 }

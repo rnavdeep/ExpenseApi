@@ -54,6 +54,14 @@ namespace Expense.API.Repositories.Expense
         /// <returns></returns>
         public Task<ExpenseModel> UpdateExpenseAsync(UpdateExpenseDto updateExpenseDto);
 
+        /// <summary>
+        /// Get textract result for the table
+        /// </summary>
+        /// <param name="expenseId"></param>
+        /// <param name="docId"></param>
+        /// <returns></returns>
+        public Task<DocumentJobResult?> GetDocResult(Guid expenseId, Guid docId);
+
     }
 }
 

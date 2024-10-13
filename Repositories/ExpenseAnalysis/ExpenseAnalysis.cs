@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.Textract;
@@ -8,6 +9,7 @@ using Amazon.Textract.Model;
 using Azure;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -107,15 +109,49 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             string jsonResult = JsonConvert.SerializeObject(summaryFieldsJson, Formatting.Indented);
             return jsonResult;
         }
+        private async Task UpdateTotal(Guid expenseId, Dictionary<string, string> summaryFields)
+        {
+            var expense = await userDocumentsDbContext.Expenses
+                .Where(expense => expense.Id == expenseId)
+                .FirstOrDefaultAsync();
+
+            if (expense != null)
+            {
+                if (summaryFields.ContainsKey("TOTAL"))
+                {
+                    string fieldValue = summaryFields["TOTAL"];
+
+                    // Try to parse the numeric value from the string as a decimal
+                    if (decimal.TryParse(Regex.Replace(fieldValue, @"[^\d.-]", ""), out decimal amountAdded))
+                    {
+                        expense.Amount += amountAdded;
+
+                        // Update the total and save changes
+                        await userDocumentsDbContext.SaveChangesAsync();
+                    }
+                }
+            }
+        }
+
+
 
         public async Task StoreResults(GetExpenseAnalysisResponse getExpenseAnalysisResponse, DocumentJobResult documentJobResult, byte status)
         {
             documentJobResult.Total = 0;
             documentJobResult.ResultCreatedAt = DateTime.UtcNow;
-            documentJobResult.ColumnNames = BuildColumnJson(getExpenseAnalysisResponse.ExpenseDocuments[0].LineItemGroups[0].LineItems[0]);
+            if (getExpenseAnalysisResponse.ExpenseDocuments[0].LineItemGroups[0].LineItems.Count > 0)
+            {
+                documentJobResult.ColumnNames = BuildColumnJson(getExpenseAnalysisResponse.ExpenseDocuments[0].LineItemGroups[0].LineItems[0]);
+                documentJobResult.ResultLineItems = BuildLineItemJson(getExpenseAnalysisResponse.ExpenseDocuments);
+            }
             documentJobResult.SummaryFields = BuildSummaryFieldsJson(getExpenseAnalysisResponse.ExpenseDocuments[0]);
-            documentJobResult.ResultLineItems = BuildLineItemJson(getExpenseAnalysisResponse.ExpenseDocuments);
             documentJobResult.Status = status;
+            // Deserialize the JSON string back into a list of dictionaries
+            var summaryFieldsList = JsonConvert.DeserializeObject<Dictionary<string, string>>(documentJobResult.SummaryFields);
+            if(summaryFieldsList != null)
+            {
+                await UpdateTotal(documentJobResult.ExpenseId, summaryFieldsList);
+            }
             //await userDocumentsDbContext.DocumentJobResults.Up(result);
             await userDocumentsDbContext.SaveChangesAsync();
 
