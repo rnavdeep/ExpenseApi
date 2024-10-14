@@ -2,6 +2,7 @@
 using Expense.API.Mappings;
 using Expense.API.Middlewares;
 using Expense.API.Repositories.Background;
+using Expense.API.Repositories.Notifications;
 using Microsoft.AspNetCore.Identity;
 using StackExchange.Redis;
 
@@ -41,7 +42,7 @@ builder.Services.ConfigureSwagger();
 builder.Services.ConfigureCors();
 builder.Services.ConfigureAwsServices(builder.Configuration);
 builder.Services.AddHostedService<TextractPollingRepository>();
-
+builder.Services.AddSignalR();
 // Configure AutoMapper and Identity
 builder.Services.AddAutoMapper(typeof(AutomapperProfiles));
 builder.Services.AddIdentityCore<IdentityUser>()
@@ -78,7 +79,20 @@ app.UseMiddleware<RequestHandlerMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("AllowAllOrigins");
 app.UseRouting();
-app.UseSession(); // Ensure this is added after UseRouting()
+app.MapHub<TextractNotificationHub>("/textractNotification");
+app.UseSession();
+app.Use(async (context, next) =>
+{
+    await next.Invoke();
+
+    var endpoints = app.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints;
+
+    foreach (var endpoint in endpoints)
+    {
+        Console.WriteLine($"Endpoint: {endpoint.DisplayName}");
+    }
+});
+
 
 app.UseAuthentication();
 app.UseAuthorization();

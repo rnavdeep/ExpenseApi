@@ -9,7 +9,9 @@ using Amazon.Textract.Model;
 using Azure;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
+using Expense.API.Repositories.Notifications;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -25,15 +27,17 @@ namespace Expense.API.Repositories.ExpenseAnalysis
         private readonly IHttpContextAccessor httpContextAccessor;
         private readonly UserDocumentsDbContext userDocumentsDbContext;
         private readonly IAmazonTextract amazonTextract;
-
+        private readonly IHubContext<TextractNotificationHub> textractNotification;
         public ExpenseAnalysis(IConfiguration configuration, IAmazonS3 amazonS3, IHttpContextAccessor httpContextAccessor
-            , UserDocumentsDbContext userDocumentsDbContext, IAmazonTextract amazonTextract)
+            , UserDocumentsDbContext userDocumentsDbContext, IAmazonTextract amazonTextract,
+                IHubContext<TextractNotificationHub> textractNotification)
         {
             this.configuration = configuration;
             this.s3Client = amazonS3;
             this.httpContextAccessor = httpContextAccessor;
             this.userDocumentsDbContext = userDocumentsDbContext;
             this.amazonTextract = amazonTextract;
+            this.textractNotification = textractNotification;
         }
         private string? BuildColumnJson(LineItemFields lineItem)
         {
@@ -405,9 +409,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
                     documentJobResult.DocumentId = docId;
                     await userDocumentsDbContext.DocumentJobResults.AddAsync(documentJobResult);
                     await userDocumentsDbContext.SaveChangesAsync();
-
-
-                    //return jobId
+                    await textractNotification.Clients.User(userFound.Username.ToString()).SendAsync("ReceiveMessage", $"Created Job Sent for user {userFound.Username}");
                     return jobId;
                 }
                 catch (AmazonTextractException textractException)

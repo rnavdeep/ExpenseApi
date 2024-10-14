@@ -7,6 +7,8 @@ using Amazon.Textract.Model;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
 using Expense.API.Repositories.ExpenseAnalysis;
+using Expense.API.Repositories.Notifications;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -19,14 +21,16 @@ namespace Expense.API.Repositories.Background
         private readonly IServiceProvider serviceProvider;
         private readonly ILogger<TextractPollingRepository> logger;
         private readonly IAmazonTextract amazonTextract;
-
+        private readonly IHubContext<TextractNotificationHub> textractNotification;
         public TextractPollingRepository(IServiceProvider serviceProvider,
                                          ILogger<TextractPollingRepository> logger,
-                                         IAmazonTextract amazonTextract)
+                                         IAmazonTextract amazonTextract,
+                                         IHubContext<TextractNotificationHub> textractNotification)
         {
             this.serviceProvider = serviceProvider;
             this.logger = logger;
             this.amazonTextract = amazonTextract;
+            this.textractNotification = textractNotification;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -56,7 +60,7 @@ namespace Expense.API.Repositories.Background
                     }
 
                     // Wait before polling again
-                    await Task.Delay(TimeSpan.FromMinutes(10), stoppingToken);
+                    await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken);
                 }
                 catch (Exception ex)
                 {
@@ -90,6 +94,9 @@ namespace Expense.API.Repositories.Background
                 // Update job status in the database after processing
                 documentJobResult.Status = 1; // Mark job as completed
                 await userDocumentsDbContext.SaveChangesAsync(stoppingToken);
+                string userId = documentJobResult.CreatedById.ToString();
+                string message = $"Expense {documentJobResult.Expense.Title} is processed and result is ready to view.";
+                await textractNotification.Clients.All.SendAsync("ReceiveMessage", message);
             }
             catch (Exception ex)
             {
