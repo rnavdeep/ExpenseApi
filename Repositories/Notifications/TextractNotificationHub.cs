@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace Expense.API.Repositories.Notifications
 {
-	public class TextractNotificationHub: Hub, ITextractNotification
+	public class TextractNotificationHub: Hub
 	{
 		public TextractNotificationHub()
 		{

@@ -22,10 +22,12 @@ namespace Expense.API.Repositories.Background
         private readonly ILogger<TextractPollingRepository> logger;
         private readonly IAmazonTextract amazonTextract;
         private readonly IHubContext<TextractNotificationHub> textractNotification;
+
         public TextractPollingRepository(IServiceProvider serviceProvider,
                                          ILogger<TextractPollingRepository> logger,
                                          IAmazonTextract amazonTextract,
-                                         IHubContext<TextractNotificationHub> textractNotification)
+                                         IHubContext<TextractNotificationHub> textractNotification
+                                         )
         {
             this.serviceProvider = serviceProvider;
             this.logger = logger;
@@ -47,6 +49,7 @@ namespace Expense.API.Repositories.Background
                         // Resolve the scoped DbContext and ExpenseAnalysis service within the scope
                         var userDocumentsDbContext = scope.ServiceProvider.GetRequiredService<UserDocumentsDbContext>();
                         var expenseAnalysis = scope.ServiceProvider.GetRequiredService<IExpenseAnalysis>();
+                        var textractNotificationDb = scope.ServiceProvider.GetRequiredService<ITextractNotification>();
 
                         // Fetch all pending jobs from the database
                         var pendingJobs = await userDocumentsDbContext.DocumentJobResults.Where(job=>job.Status == 0)
@@ -55,7 +58,7 @@ namespace Expense.API.Repositories.Background
                         foreach (var job in pendingJobs)
                         {
                             // Poll the job and update the result as necessary
-                            await PollTextractJob(job.JobId, job, userDocumentsDbContext, expenseAnalysis, stoppingToken);
+                            await PollTextractJob(job.JobId, job, userDocumentsDbContext, expenseAnalysis, stoppingToken, textractNotificationDb);
                         }
                     }
 
@@ -74,7 +77,7 @@ namespace Expense.API.Repositories.Background
         public async Task PollTextractJob(string jobId, DocumentJobResult documentJobResult,
                                            UserDocumentsDbContext userDocumentsDbContext,
                                            IExpenseAnalysis expenseAnalysis,
-                                           CancellationToken stoppingToken)
+                                           CancellationToken stoppingToken, ITextractNotification textractNotificationDb)
         {
             try
             {
@@ -96,6 +99,7 @@ namespace Expense.API.Repositories.Background
                 await userDocumentsDbContext.SaveChangesAsync(stoppingToken);
                 string userId = documentJobResult.CreatedById.ToString();
                 string message = $"Expense {documentJobResult.Expense.Title} is processed and result is ready to view.";
+                await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message);
                 await textractNotification.Clients.All.SendAsync("ReceiveMessage", message);
             }
             catch (Exception ex)

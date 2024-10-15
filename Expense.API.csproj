@@ -63,6 +63,7 @@
     <Folder Include="Configurations\" />
     <Folder Include="Repositories\Background\" />
     <Folder Include="Repositories\Notifications\" />
+    <Folder Include="Models\Domain\Notifications\" />
   </ItemGroup>
   <ItemGroup>
     <None Remove="Models\Domain\Request\" />

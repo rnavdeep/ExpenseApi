@@ -81,17 +81,17 @@ app.UseCors("AllowAllOrigins");
 app.UseRouting();
 app.MapHub<TextractNotificationHub>("/textractNotification");
 app.UseSession();
-app.Use(async (context, next) =>
-{
-    await next.Invoke();
+//app.Use(async (context, next) =>
+//{
+//    await next.Invoke();
 
-    var endpoints = app.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints;
+//    var endpoints = app.Services.GetRequiredService<Microsoft.AspNetCore.Routing.EndpointDataSource>().Endpoints;
 
-    foreach (var endpoint in endpoints)
-    {
-        Console.WriteLine($"Endpoint: {endpoint.DisplayName}");
-    }
-});
+//    foreach (var endpoint in endpoints)
+//    {
+//        Console.WriteLine($"Endpoint: {endpoint.DisplayName}");
+//    }
+//});
 
 
 app.UseAuthentication();

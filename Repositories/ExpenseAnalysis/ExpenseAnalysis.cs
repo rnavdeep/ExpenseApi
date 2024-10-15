@@ -28,9 +28,11 @@ namespace Expense.API.Repositories.ExpenseAnalysis
         private readonly UserDocumentsDbContext userDocumentsDbContext;
         private readonly IAmazonTextract amazonTextract;
         private readonly IHubContext<TextractNotificationHub> textractNotification;
+        private readonly ITextractNotification textractNotificationDb;
+
         public ExpenseAnalysis(IConfiguration configuration, IAmazonS3 amazonS3, IHttpContextAccessor httpContextAccessor
             , UserDocumentsDbContext userDocumentsDbContext, IAmazonTextract amazonTextract,
-                IHubContext<TextractNotificationHub> textractNotification)
+                IHubContext<TextractNotificationHub> textractNotification, ITextractNotification textractNotificationDb)
         {
             this.configuration = configuration;
             this.s3Client = amazonS3;
@@ -38,7 +40,9 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             this.userDocumentsDbContext = userDocumentsDbContext;
             this.amazonTextract = amazonTextract;
             this.textractNotification = textractNotification;
+            this.textractNotificationDb = textractNotificationDb;
         }
+
         private string? BuildColumnJson(LineItemFields lineItem)
         {
             var headers = new List<Dictionary<string, string>>();
@@ -67,6 +71,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             string jsonResult = JsonConvert.SerializeObject(headers, Formatting.Indented);
             return jsonResult;
         }
+
         private string BuildLineItemJson(List<ExpenseDocument> expenseDocuments)
         {
             var lineItemsList = new List<Dictionary<string, string>>();
@@ -98,6 +103,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             string jsonResult = JsonConvert.SerializeObject(lineItemsList, Formatting.Indented);
             return jsonResult;
         }
+
         private string BuildSummaryFieldsJson(ExpenseDocument expenseDocument)
         {
             var summaryFieldsJson = new Dictionary<string, string>();
@@ -113,6 +119,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             string jsonResult = JsonConvert.SerializeObject(summaryFieldsJson, Formatting.Indented);
             return jsonResult;
         }
+
         private async Task UpdateTotal(Guid expenseId, Dictionary<string, string> summaryFields)
         {
             var expense = await userDocumentsDbContext.Expenses
@@ -137,8 +144,6 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             }
         }
 
-
-
         public async Task StoreResults(GetExpenseAnalysisResponse getExpenseAnalysisResponse, DocumentJobResult documentJobResult, byte status)
         {
             documentJobResult.Total = 0;
@@ -161,6 +166,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
 
             //return result;
         }
+
         public async Task<List<ExpenseDocumentResult>> StartExpenseExtractAsync(Guid expenseId)
         {
             string bucketName = configuration["AWS:BucketName"];
@@ -409,14 +415,15 @@ namespace Expense.API.Repositories.ExpenseAnalysis
                     documentJobResult.DocumentId = docId;
                     await userDocumentsDbContext.DocumentJobResults.AddAsync(documentJobResult);
                     await userDocumentsDbContext.SaveChangesAsync();
-                    await textractNotification.Clients.User(userFound.Username.ToString()).SendAsync("ReceiveMessage", $"Created Job Sent for user {userFound.Username}");
+                    string message = $"Processing {documentJobResult.Expense.Title}. Please wait for another notification after it is processed.";
+                    await textractNotification.Clients.User(userFound.Username.ToString()).SendAsync("ReceiveMessage", message);
+                    await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message);
                     return jobId;
                 }
                 catch (AmazonTextractException textractException)
                 {
                     throw new Exception(textractException.Message);
                 }
-
             }
 
             throw new Exception("Error Occured");
