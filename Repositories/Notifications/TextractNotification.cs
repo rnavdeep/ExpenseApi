@@ -16,7 +16,7 @@ namespace Expense.API.Repositories.Notifications
             this.httpContextAccessor = httpContextAccessor;
 		}
 
-        public async Task<Guid> CreateNotifcation(Guid userId, string message)
+        public async Task<Guid> CreateNotifcation(Guid userId, string message, string title)
         {
             try
             {
@@ -26,6 +26,7 @@ namespace Expense.API.Repositories.Notifications
                 notification.IsRead = 0;
                 notification.Message = message;
                 notification.UserId = userId;
+                notification.Title = title;
 
                 // Add to Db
                 await userDocumentsDbContext.Notification.AddAsync(notification);

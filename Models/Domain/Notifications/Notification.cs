@@ -35,6 +35,11 @@ namespace Expense.API.Models.Domain
         /// </summary>
         public string Message { get; set; }
 
+        /// <summary>
+        /// Title
+        /// </summary>
+        public string? Title { get; set; }
+
     }
 }
 

@@ -93,14 +93,28 @@ namespace Expense.API.Repositories.Background
                     // Process and store results using the expenseAnalysis service
                     await expenseAnalysis.StoreResults(getExpenseAnalysisResponse, documentJobResult, 1);
                 }
+                // Check if the user exists in the database
+                var userFound = await userDocumentsDbContext.Users
+                    .FirstOrDefaultAsync(u => u.Id == documentJobResult.CreatedById);
 
+                if (userFound == null)
+                {
+                    throw new Exception("User does not exist.");
+                }
                 // Update job status in the database after processing
                 documentJobResult.Status = 1; // Mark job as completed
+                var doc = await userDocumentsDbContext.Documents.Where(doc => doc.Id.Equals(documentJobResult.DocumentId)).FirstOrDefaultAsync();
                 await userDocumentsDbContext.SaveChangesAsync(stoppingToken);
                 string userId = documentJobResult.CreatedById.ToString();
-                string message = $"Expense {documentJobResult.Expense.Title} is processed and result is ready to view.";
-                await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message);
-                await textractNotification.Clients.All.SendAsync("ReceiveMessage", message);
+                string title = $"Expense: {documentJobResult.Expense.Title}";
+                string message = string.Empty;
+                if(doc != null)
+                {
+                    documentJobResult.Document = doc;
+                    message = $"Document {documentJobResult.Document.FileName} is processed and result is ready to view.";
+                }
+                await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message,title);
+                await textractNotification.Clients.User(userFound.Username.ToString()).SendAsync("ReceiveMessage", message);
             }
             catch (Exception ex)
             {
