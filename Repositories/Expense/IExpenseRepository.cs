@@ -11,14 +11,20 @@ namespace Expense.API.Repositories.Expense
 		/// List of expenses of current user 
 		/// </summary>
 		/// <returns></returns>
-		public Task<List<ExpenseModel>> GetExpensesAsync();
+		public Task<List<ExpenseDto>> GetExpensesAsync(Pagination pagination);
 
-		/// <summary>
-		/// Get by Expense Id
-		/// </summary>
-		/// <param name="expenseId"></param>
-		/// <returns></returns>
-		public Task<ExpenseModel> GetExpenseByIdAsync(Guid expenseId);
+        /// <summary>
+        /// Count of expenses of current user
+        /// </summary>
+        /// <returns></returns>
+        public Task<int> GetExpensesCountAsync();
+
+        /// <summary>
+        /// Get by Expense Id
+        /// </summary>
+        /// <param name="expenseId"></param>
+        /// <returns></returns>
+        public Task<ExpenseModel> GetExpenseByIdAsync(Guid expenseId);
 
         /// <summary>
         /// Get Doc Data by Expense Id

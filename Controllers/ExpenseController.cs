@@ -28,19 +28,23 @@ namespace Expense.API.Controllers
 
         // GET: api/values
         [HttpGet]
-        public async Task<IActionResult> Get()
+        public async Task<IActionResult> Get(Pagination pagination)
         {
             try
             {
-                var result = await expenseRepository.GetExpensesAsync();
+                var result = await expenseRepository.GetExpensesAsync(pagination);
+                var count = await expenseRepository.GetExpensesCountAsync();
                 if (result == null || !result.Any())
                 {
                     return NotFound($"No expenses found for the logged in user");
                 }
+                var resultOk = new
+                {
+                    Expenses = result,
+                    TotalRows = count
+                };
 
-                // Map the domain model to DTO
-                var returnResult = mapper.Map<List<ExpenseDto>>(result);
-                return Ok(returnResult);
+                return Ok(resultOk);
             }
             catch (Exception e)
             {
