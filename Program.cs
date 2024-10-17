@@ -79,7 +79,7 @@ app.UseMiddleware<RequestHandlerMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("AllowAllOrigins");
 app.UseRouting();
-app.MapHub<TextractNotificationHub>("/textractNotification");
+app.MapHub<TextractNotificationHub>("/api/textractNotification");
 app.UseSession();
 //app.Use(async (context, next) =>
 //{

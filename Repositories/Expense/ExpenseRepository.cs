@@ -168,6 +168,41 @@ namespace Expense.API.Repositories.Expense
             return await userDocumentsDbContext.Expenses.CountAsync();
         }
 
+        public async Task<List<ExpenseDto>> GetExpensesDropdownAsync()
+        {
+            // Retrieve the current logged-in user's email from the HttpContext -- email is always unique
+            var emailUser = httpContextAccessor.HttpContext?.User?.Claims
+                             .FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+
+            // Check if the user exists in the database
+            var user = await userDocumentsDbContext.Users
+                            .FirstOrDefaultAsync(u => u.Email.Equals(emailUser));
+
+            if (user == null)
+            {
+                // Handle case where the user does not exist -- can not return expenses
+                throw new Exception("Invalid User");
+            }
+
+            List<ExpenseDto> expenses = await userDocumentsDbContext.Expenses
+                .Where(expense => expense.CreatedById == user.Id)
+                .GroupJoin(userDocumentsDbContext.DocumentJobResults,
+                           expense => expense.Id,
+                           document => document.ExpenseId,
+                           (expense, documents) => new ExpenseDto
+                           {
+                               Id = expense.Id.ToString(),
+                               Amount = expense.Amount,
+                               CreatedAt = expense.CreatedAt.ToShortDateString(),
+                               Title = expense.Title,
+                               Description = expense.Description
+                           })
+                .ToListAsync();
+
+            // Return the list of expenses
+            return expenses;
+        }
+
         public async Task<Boolean> RemoveExpense(Guid id)
         {
             // Find the expense

@@ -52,6 +52,46 @@ namespace Expense.API.Controllers
                 return BadRequest($"An error occurred: {e.Message}");
             }
         }
+        // GET: api/values
+        [HttpGet("count")]
+        public async Task<IActionResult> GetCount()
+        {
+            try
+            {
+                var count = await expenseRepository.GetExpensesCountAsync();
+                var resultOk = new
+                {
+                    TotalRows = count
+                };
+
+                return Ok(resultOk);
+            }
+            catch (Exception e)
+            {
+                // Log the error if necessary
+                return BadRequest($"An error occurred: {e.Message}");
+            }
+        }
+        // GET: api/values
+        [HttpGet("dropdown")]
+        public async Task<IActionResult> Get()
+        {
+            try
+            {
+                var result = await expenseRepository.GetExpensesDropdownAsync();
+                if (result == null || !result.Any())
+                {
+                    return NotFound($"No expenses found for the logged in user");
+                }
+
+                return Ok(result);
+            }
+            catch (Exception e)
+            {
+                // Log the error if necessary
+                return BadRequest($"An error occurred: {e.Message}");
+            }
+        }
 
         // GET: api/GetDocByExpenseId
         [HttpGet("docs/{id}")]
