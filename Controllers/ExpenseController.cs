@@ -28,27 +28,35 @@ namespace Expense.API.Controllers
 
         // GET: api/values
         [HttpGet]
-        public async Task<IActionResult> Get(Pagination pagination)
+        public async Task<IActionResult> Get([FromQuery] Pagination pagination, [FromQuery] FilterBy? filterBy, [FromQuery] SortFilter? sortFilter)
         {
             try
             {
-                var result = await expenseRepository.GetExpensesAsync(pagination);
+                if (filterBy?.PropertyName == null || filterBy?.Value == null)
+                {
+                    filterBy = null;
+                }
+                if (sortFilter?.PropertyNameSort == null)
+                {
+                    sortFilter = null;
+                }
+                var expenses = await expenseRepository.GetExpensesAsync(pagination, filterBy, sortFilter);
                 var count = await expenseRepository.GetExpensesCountAsync();
-                if (result == null || !result.Any())
+                var expensesDto = mapper.Map<List<ExpenseDto>>(expenses);
+                if (expensesDto == null || !expensesDto.Any())
                 {
                     return NotFound($"No expenses found for the logged in user");
                 }
-                var resultOk = new
+                var result = new
                 {
-                    Expenses = result,
+                    Expenses = expensesDto,
                     TotalRows = count
                 };
 
-                return Ok(resultOk);
+                return Ok(result);
             }
             catch (Exception e)
             {
-                // Log the error if necessary
                 return BadRequest($"An error occurred: {e.Message}");
             }
         }

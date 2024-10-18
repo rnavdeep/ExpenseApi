@@ -5,6 +5,7 @@ using Expense.API.Models.Domain;
 using ExpenseModel = Expense.API.Models.Domain.Expense;
 using System;
 using Expense.API.Models.DTO;
+using Expense.API.Repositories.QueryBuilder;
 
 namespace Expense.API.Repositories.Expense
 {
@@ -12,7 +13,7 @@ namespace Expense.API.Repositories.Expense
 	{
         private readonly UserDocumentsDbContext userDocumentsDbContext;
         private readonly IHttpContextAccessor httpContextAccessor;
-
+        
         public ExpenseRepository(UserDocumentsDbContext userDocumentsDbContext, IHttpContextAccessor httpContextAccessor)
 		{
             this.userDocumentsDbContext = userDocumentsDbContext;
@@ -114,7 +115,7 @@ namespace Expense.API.Repositories.Expense
             throw new Exception($"Expense not found {expenseId} for user {userName}");
         }
 
-        public async Task<List<ExpenseDto>> GetExpensesAsync(Pagination pagination)
+        public async Task<List<ExpenseModel>> GetExpensesAsync(Pagination pagination,FilterBy? filterBy, SortFilter? sortFilter)
         {
             // Retrieve the current logged-in user's email from the HttpContext -- email is always unique
             var emailUser = httpContextAccessor.HttpContext?.User?.Claims
@@ -129,24 +130,13 @@ namespace Expense.API.Repositories.Expense
                 // Handle case where the user does not exist -- can not return expenses
                 throw new Exception("Invalid User"); 
             }
+            var queryBuilder = new QueryBuilder<ExpenseModel>(userDocumentsDbContext);
 
-            // Fetch paginated list of expenses for the user
-            List<ExpenseDto> expenses = await userDocumentsDbContext.Expenses
-                .Where(expense => expense.CreatedById == user.Id)
-                .Select(expense => new ExpenseDto
-                {
-                    Id = expense.Id.ToString(),
-                    Title = expense.Title,
-                    Description = expense.Description,
-                    Amount = expense.Amount,
-                    CreatedAt = expense.CreatedAt.ToShortDateString(),
-                })
-                .Skip((pagination.pageNumber - 1) * pagination.pageSize)
-                .Take(pagination.pageSize)
-                .ToListAsync();
+            var query =  queryBuilder.BuildQuery(pagination, filterBy, sortFilter);
+            var result = await query.ToListAsync();
 
             // Return the list of expenses
-            return expenses;
+            return result;
 
         }
 

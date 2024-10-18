@@ -11,7 +11,7 @@ namespace Expense.API.Repositories.Expense
 		/// List of expenses of current user 
 		/// </summary>
 		/// <returns></returns>
-		public Task<List<ExpenseDto>> GetExpensesAsync(Pagination pagination);
+		public Task<List<ExpenseModel>> GetExpensesAsync(Pagination pagination, FilterBy? filterBy, SortFilter? sortFilter);
 
         /// <summary>
         /// List of expenses of current user 
