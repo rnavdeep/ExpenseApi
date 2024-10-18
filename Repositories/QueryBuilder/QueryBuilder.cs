@@ -24,7 +24,14 @@ namespace Expense.API.Repositories.QueryBuilder
                 var parameter = Expression.Parameter(typeof(T), "x");
                 var property = Expression.Property(parameter, filter.PropertyName);
                 var value = Expression.Constant(filter.Value);
-
+                if(property.Type == typeof(decimal))
+                {
+                    filter.Type = "==";
+                    if (decimal.TryParse(filter.Value, out decimal parsedValue))
+                    {
+                        value = Expression.Constant(parsedValue);
+                    }
+                }
                 // Create the expression based on filter type
                 Expression comparisonExpression = null;
 
