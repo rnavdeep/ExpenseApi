@@ -1,3 +1,6 @@
+# This workflow builds and tests a .NET project.
+# For more information, see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-dotnet
+
 name: .NET Build and Test
 
 on:
@@ -12,21 +15,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    services:
-      mssql:
-        image: mcr.microsoft.com/mssql/server:2022-latest
-        env:
-          ACCEPT_EULA: Y
-          SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
-        ports:
-          - 1433:1433
-        options: >-
-          --health-cmd "exit 0"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-          --name mssql-server
-
     steps:
       # Checkout the code from the repository
       - name: Checkout code
@@ -38,41 +26,14 @@ jobs:
         with:
           dotnet-version: 7.0.400
 
-      # Install SQLCMD for database interactions
-      - name: Install SQLCMD
-        run: |
-          sudo apt-get install -y mssql-tools unixodbc-dev
-          echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
-          source ~/.bashrc
-
-      # Install dotnet-ef globally (to use migrations commands)
-      - name: Install dotnet-ef tool
-        run: dotnet tool install --global dotnet-ef
-
-      # Add dotnet-ef tool path to PATH
-      - name: Add dotnet tools to PATH
-        run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
-
-      # Wait for MS SQL Server to start (give it enough time)
-      - name: Wait for MS SQL Server
-        run: sleep 60
-
       # Restore project dependencies
       - name: Restore dependencies
         run: dotnet restore
-
-      # Apply EF Core migrations and update database
-      - name: Apply EF Core Migrations
-        run: |
-          dotnet ef migrations add ExpenseAuthMigration --context ExpenseAuthDbContext
-          dotnet ef database update --context ExpenseAuthDbContext
-          dotnet ef migrations add UserDocsMigration --context UserDocumentsDbContext
-          dotnet ef database update --context UserDocumentsDbContext
 
       # Build the project
       - name: Build project
         run: dotnet build --no-restore
 
-      # Uncomment to run tests (optional)
+      # Uncomment to run tests
       # - name: Run tests
       #   run: dotnet test --no-build --verbosity normal
