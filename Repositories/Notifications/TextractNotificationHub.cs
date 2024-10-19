@@ -30,7 +30,7 @@ namespace Expense.API.Repositories.Notifications
         }
         public async Task SendTextractNotification(string userName, string message)
         {
-            await Clients.User(userName).SendAsync("ReceiveMessage", message);
+            await Clients.User(userName).SendAsync("TextractNotification", message);
         }
     }
 }

@@ -21,9 +21,13 @@ namespace Expense.API.Repositories.QueryBuilder
             // Apply filter 
             if (filter != null)
             {
+                //linq to determine the type of <T>
                 var parameter = Expression.Parameter(typeof(T), "x");
+                //linq to determine the type of Property in Model <T>
                 var property = Expression.Property(parameter, filter.PropertyName);
                 var value = Expression.Constant(filter.Value);
+
+                //If the property of type decimal for now, generate query with Property == Value
                 if(property.Type == typeof(decimal))
                 {
                     filter.Type = "==";

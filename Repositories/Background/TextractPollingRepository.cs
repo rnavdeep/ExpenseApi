@@ -102,19 +102,19 @@ namespace Expense.API.Repositories.Background
                     throw new Exception("User does not exist.");
                 }
                 // Update job status in the database after processing
-                documentJobResult.Status = 1; // Mark job as completed
+                documentJobResult.Status = 1; 
                 var doc = await userDocumentsDbContext.Documents.Where(doc => doc.Id.Equals(documentJobResult.DocumentId)).FirstOrDefaultAsync();
                 await userDocumentsDbContext.SaveChangesAsync(stoppingToken);
                 string userId = documentJobResult.CreatedById.ToString();
                 string title = $"Expense: {documentJobResult.Expense.Title}";
                 string message = string.Empty;
-                if(doc != null)
+                if(doc != null && documentJobResult.Expense != null)
                 {
                     documentJobResult.Document = doc;
-                    message = $"Document {documentJobResult.Document.FileName} is processed and result is ready to view.";
+                    message = $"Document {documentJobResult.Document.FileName} is processed with total being {documentJobResult.Expense.Amount}. View Detailed result in Expense Results section.";
                 }
                 await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message,title);
-                await textractNotification.Clients.User(userFound.Username.ToString()).SendAsync("ReceiveMessage", message);
+                await textractNotification.Clients.User(userFound.Username.ToString()).SendAsync("TextractNotification", message);
             }
             catch (Exception ex)
             {
