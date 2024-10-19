@@ -16,6 +16,7 @@ namespace Expense.API.Data
         public DbSet<Document> Documents { get; set; }
         public DbSet<ExpenseUser> ExpenseUsers { get; set; }
         public DbSet<DocumentJobResult> DocumentJobResults { get; set; }
+        public DbSet<Notification> Notification { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -32,6 +33,7 @@ namespace Expense.API.Data
                 .HasOne(eu => eu.User)
                 .WithMany()
                 .HasForeignKey(eu => eu.UserId);
+
             modelBuilder.Entity<ExpenseModel>()
                 .HasOne(e => e.CreatedBy)
                 .WithMany() 
@@ -39,6 +41,12 @@ namespace Expense.API.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<DocumentJobResult>();
+
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
 
         }
     }

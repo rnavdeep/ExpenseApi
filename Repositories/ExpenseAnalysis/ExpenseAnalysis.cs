@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.Textract;
@@ -8,6 +9,9 @@ using Amazon.Textract.Model;
 using Azure;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
+using Expense.API.Repositories.Notifications;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -23,16 +27,22 @@ namespace Expense.API.Repositories.ExpenseAnalysis
         private readonly IHttpContextAccessor httpContextAccessor;
         private readonly UserDocumentsDbContext userDocumentsDbContext;
         private readonly IAmazonTextract amazonTextract;
+        private readonly IHubContext<TextractNotificationHub> textractNotification;
+        private readonly ITextractNotification textractNotificationDb;
 
         public ExpenseAnalysis(IConfiguration configuration, IAmazonS3 amazonS3, IHttpContextAccessor httpContextAccessor
-            , UserDocumentsDbContext userDocumentsDbContext, IAmazonTextract amazonTextract)
+            , UserDocumentsDbContext userDocumentsDbContext, IAmazonTextract amazonTextract,
+                IHubContext<TextractNotificationHub> textractNotification, ITextractNotification textractNotificationDb)
         {
             this.configuration = configuration;
             this.s3Client = amazonS3;
             this.httpContextAccessor = httpContextAccessor;
             this.userDocumentsDbContext = userDocumentsDbContext;
             this.amazonTextract = amazonTextract;
+            this.textractNotification = textractNotification;
+            this.textractNotificationDb = textractNotificationDb;
         }
+
         private string? BuildColumnJson(LineItemFields lineItem)
         {
             var headers = new List<Dictionary<string, string>>();
@@ -61,6 +71,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             string jsonResult = JsonConvert.SerializeObject(headers, Formatting.Indented);
             return jsonResult;
         }
+
         private string BuildLineItemJson(List<ExpenseDocument> expenseDocuments)
         {
             var lineItemsList = new List<Dictionary<string, string>>();
@@ -92,6 +103,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             string jsonResult = JsonConvert.SerializeObject(lineItemsList, Formatting.Indented);
             return jsonResult;
         }
+
         private string BuildSummaryFieldsJson(ExpenseDocument expenseDocument)
         {
             var summaryFieldsJson = new Dictionary<string, string>();
@@ -108,19 +120,53 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             return jsonResult;
         }
 
+        private async Task UpdateTotal(Guid expenseId, Dictionary<string, string> summaryFields)
+        {
+            var expense = await userDocumentsDbContext.Expenses
+                .Where(expense => expense.Id == expenseId)
+                .FirstOrDefaultAsync();
+
+            if (expense != null)
+            {
+                if (summaryFields.ContainsKey("TOTAL"))
+                {
+                    string fieldValue = summaryFields["TOTAL"];
+
+                    // Try to parse the numeric value from the string as a decimal
+                    if (decimal.TryParse(Regex.Replace(fieldValue, @"[^\d.-]", ""), out decimal amountAdded))
+                    {
+                        expense.Amount += amountAdded;
+
+                        // Update the total and save changes
+                        await userDocumentsDbContext.SaveChangesAsync();
+                    }
+                }
+            }
+        }
+
         public async Task StoreResults(GetExpenseAnalysisResponse getExpenseAnalysisResponse, DocumentJobResult documentJobResult, byte status)
         {
             documentJobResult.Total = 0;
             documentJobResult.ResultCreatedAt = DateTime.UtcNow;
-            documentJobResult.ColumnNames = BuildColumnJson(getExpenseAnalysisResponse.ExpenseDocuments[0].LineItemGroups[0].LineItems[0]);
+            if (getExpenseAnalysisResponse.ExpenseDocuments[0].LineItemGroups[0].LineItems.Count > 0)
+            {
+                documentJobResult.ColumnNames = BuildColumnJson(getExpenseAnalysisResponse.ExpenseDocuments[0].LineItemGroups[0].LineItems[0]);
+                documentJobResult.ResultLineItems = BuildLineItemJson(getExpenseAnalysisResponse.ExpenseDocuments);
+            }
             documentJobResult.SummaryFields = BuildSummaryFieldsJson(getExpenseAnalysisResponse.ExpenseDocuments[0]);
-            documentJobResult.ResultLineItems = BuildLineItemJson(getExpenseAnalysisResponse.ExpenseDocuments);
             documentJobResult.Status = status;
+            // Deserialize the JSON string back into a list of dictionaries
+            var summaryFieldsList = JsonConvert.DeserializeObject<Dictionary<string, string>>(documentJobResult.SummaryFields);
+            if(summaryFieldsList != null)
+            {
+                await UpdateTotal(documentJobResult.ExpenseId, summaryFieldsList);
+            }
             //await userDocumentsDbContext.DocumentJobResults.Up(result);
             await userDocumentsDbContext.SaveChangesAsync();
 
             //return result;
         }
+
         public async Task<List<ExpenseDocumentResult>> StartExpenseExtractAsync(Guid expenseId)
         {
             string bucketName = configuration["AWS:BucketName"];
@@ -369,16 +415,17 @@ namespace Expense.API.Repositories.ExpenseAnalysis
                     documentJobResult.DocumentId = docId;
                     await userDocumentsDbContext.DocumentJobResults.AddAsync(documentJobResult);
                     await userDocumentsDbContext.SaveChangesAsync();
+                    string title = $"Expense: {documentJobResult.Expense.Title}";
+                    string message = $"Processing: {documentJobResult.Document.FileName}. Result will be available soon.";
+                    await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message, title);
 
-
-                    //return jobId
+                    await textractNotification.Clients.User(userFound.Username.ToString()).SendAsync("ReceiveMessage", message);
                     return jobId;
                 }
                 catch (AmazonTextractException textractException)
                 {
                     throw new Exception(textractException.Message);
                 }
-
             }
 
             throw new Exception("Error Occured");

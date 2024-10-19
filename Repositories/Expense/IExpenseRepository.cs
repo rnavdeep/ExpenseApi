@@ -11,14 +11,26 @@ namespace Expense.API.Repositories.Expense
 		/// List of expenses of current user 
 		/// </summary>
 		/// <returns></returns>
-		public Task<List<ExpenseModel>> GetExpensesAsync();
+		public Task<List<ExpenseModel>> GetExpensesAsync(Pagination pagination, FilterBy? filterBy, SortFilter? sortFilter);
 
-		/// <summary>
-		/// Get by Expense Id
-		/// </summary>
-		/// <param name="expenseId"></param>
-		/// <returns></returns>
-		public Task<ExpenseModel> GetExpenseByIdAsync(Guid expenseId);
+        /// <summary>
+        /// List of expenses of current user 
+        /// </summary>
+        /// <returns></returns>
+        public Task<List<ExpenseDto>> GetExpensesDropdownAsync();
+
+        /// <summary>
+        /// Count of expenses of current user
+        /// </summary>
+        /// <returns></returns>
+        public Task<int> GetExpensesCountAsync();
+
+        /// <summary>
+        /// Get by Expense Id
+        /// </summary>
+        /// <param name="expenseId"></param>
+        /// <returns></returns>
+        public Task<ExpenseModel> GetExpenseByIdAsync(Guid expenseId);
 
         /// <summary>
         /// Get Doc Data by Expense Id
@@ -53,6 +65,14 @@ namespace Expense.API.Repositories.Expense
         /// <param name="updateExpenseDto"></param>
         /// <returns></returns>
         public Task<ExpenseModel> UpdateExpenseAsync(UpdateExpenseDto updateExpenseDto);
+
+        /// <summary>
+        /// Get textract result for the table
+        /// </summary>
+        /// <param name="expenseId"></param>
+        /// <param name="docId"></param>
+        /// <returns></returns>
+        public Task<DocumentJobResult?> GetDocResult(Guid expenseId, Guid docId);
 
     }
 }

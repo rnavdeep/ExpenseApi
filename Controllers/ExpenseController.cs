@@ -28,20 +28,71 @@ namespace Expense.API.Controllers
 
         // GET: api/values
         [HttpGet]
-        [Route("myExpenses")]
+        public async Task<IActionResult> Get([FromQuery] Pagination pagination, [FromQuery] FilterBy? filterBy, [FromQuery] SortFilter? sortFilter)
+        {
+            try
+            {
+                if (filterBy?.PropertyName == null || filterBy?.Value == null)
+                {
+                    filterBy = null;
+                }
+                if (sortFilter?.PropertyNameSort == null)
+                {
+                    sortFilter = null;
+                }
+                var expenses = await expenseRepository.GetExpensesAsync(pagination, filterBy, sortFilter);
+                var count = await expenseRepository.GetExpensesCountAsync();
+                var expensesDto = mapper.Map<List<ExpenseDto>>(expenses);
+                if (expensesDto == null || !expensesDto.Any())
+                {
+                    return NotFound($"No expenses found for the logged in user");
+                }
+                var result = new
+                {
+                    Expenses = expensesDto,
+                    TotalRows = count
+                };
+
+                return Ok(result);
+            }
+            catch (Exception e)
+            {
+                return BadRequest($"An error occurred: {e.Message}");
+            }
+        }
+        // GET: api/values
+        [HttpGet("count")]
+        public async Task<IActionResult> GetCount()
+        {
+            try
+            {
+                var count = await expenseRepository.GetExpensesCountAsync();
+                var resultOk = new
+                {
+                    TotalRows = count
+                };
+
+                return Ok(resultOk);
+            }
+            catch (Exception e)
+            {
+                // Log the error if necessary
+                return BadRequest($"An error occurred: {e.Message}");
+            }
+        }
+        // GET: api/values
+        [HttpGet("dropdown")]
         public async Task<IActionResult> Get()
         {
             try
             {
-                var result = await expenseRepository.GetExpensesAsync();
+                var result = await expenseRepository.GetExpensesDropdownAsync();
                 if (result == null || !result.Any())
                 {
                     return NotFound($"No expenses found for the logged in user");
                 }
 
-                // Map the domain model to DTO
-                var returnResult = mapper.Map<List<ExpenseDto>>(result);
-                return Ok(returnResult);
+                return Ok(result);
             }
             catch (Exception e)
             {
@@ -51,7 +102,7 @@ namespace Expense.API.Controllers
         }
 
         // GET: api/GetDocByExpenseId
-        [HttpGet("getDocs/{id}")]
+        [HttpGet("docs/{id}")]
         public async Task<IActionResult> GetDocsByExpenseId(string id)
         {
             if (!Guid.TryParse(id, out var expenseId))
@@ -64,7 +115,7 @@ namespace Expense.API.Controllers
 
         // POST api/values
         [HttpPost]
-        [Route("uploadDoc")]
+        [Route("{id}/uploadDoc")]
         public async Task<IActionResult> Post(string id, IFormFile file)
         {
 
@@ -87,22 +138,23 @@ namespace Expense.API.Controllers
 
 
         }
+
         // GET api/values/Guid
-        [HttpGet("{guid}")]
-        public async Task<IActionResult> Get(Guid guid)
+        [HttpGet("{id}")]
+        public async Task<IActionResult> Get(Guid id)
         {
             try
             {
-                return Ok(await expenseRepository.GetExpenseByIdAsync(guid));
+                return Ok(await expenseRepository.GetExpenseByIdAsync(id));
             }
             catch(Exception e)
             {
                 return BadRequest(e.Message);
             }
         }
+
         // POST api/values
         [HttpPost]
-        [Route("createForm")]
         public async Task<IActionResult> Post(string title, string description)
         {
 
@@ -131,33 +183,10 @@ namespace Expense.API.Controllers
             return BadRequest("Not created expense");
 
         }
-        // POST api/values
-        [HttpPost]
-        [Route("create")]
-        public async Task<IActionResult> Post([FromBody]AddExpenseDto addExpenseDto)
-        {
-
-            try
-            {
-                var expenseCreated = await expenseRepository.CreateExpenseAsync(mapper.Map<ExpenseModel>(addExpenseDto));
-                var expenseDto = mapper.Map<ExpenseDto>(expenseCreated);
-
-                if (expenseCreated != null)
-                {
-                    var expenseUser = new ExpenseUser(expenseCreated.Id, expenseCreated.CreatedById);
-                    var expenseUserLink = await expenseRepository.CreateExpenseUserAsync(expenseUser);
-                }
-                return Ok(expenseDto);
-            }
-            catch (Exception e)
-            {
-                return BadRequest(e.Message);
-            }
-        }
 
         // PUT api/values/5
         [HttpPut]
-        [Route("updateExpense/{id}")]
+        [Route("{id}")]
         public async Task<IActionResult> Put(string id, [FromBody] UpdateExpenseDto updateExpenseDto)
         {
             if(id != updateExpenseDto.Id)
@@ -177,7 +206,6 @@ namespace Expense.API.Controllers
             }
         }
 
-
         // DELETE api/values/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(string id)
@@ -196,6 +224,24 @@ namespace Expense.API.Controllers
             {
                 return NotFound(); 
             }
+        }
+
+        [Authorize]
+        [HttpGet("{expenseId}/doc/{docId}")]
+        public async Task<IActionResult> GetResults(string expenseId, string docId)
+        {
+            try
+            {
+                var result = await expenseRepository.GetDocResult(Guid.Parse(expenseId), Guid.Parse(docId));
+                var resultDto = mapper.Map<DocumentResultDto>(result);
+                return Ok(resultDto);
+
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+
         }
     }
 }
