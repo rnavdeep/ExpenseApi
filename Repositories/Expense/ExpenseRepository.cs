@@ -176,7 +176,7 @@ namespace Expense.API.Repositories.Expense
 
             List<ExpenseDto> expenses = await userDocumentsDbContext.Expenses
                 .Where(expense => expense.CreatedById == user.Id)
-                .GroupJoin(userDocumentsDbContext.DocumentJobResults,
+                .Join(userDocumentsDbContext.DocumentJobResults,
                            expense => expense.Id,
                            document => document.ExpenseId,
                            (expense, documents) => new ExpenseDto
@@ -187,6 +187,8 @@ namespace Expense.API.Repositories.Expense
                                Title = expense.Title,
                                Description = expense.Description
                            })
+                .GroupBy(expense=>expense.Id)
+                .Select(group => group.First())
                 .ToListAsync();
 
             // Return the list of expenses
