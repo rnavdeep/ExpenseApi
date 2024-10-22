@@ -1,0 +1,2 @@
+CREATE DATABASE ExpenseAnalyser;
+GO
