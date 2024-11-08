@@ -26,8 +26,7 @@ namespace Expense.API.Repositories.Background
         public TextractPollingRepository(IServiceProvider serviceProvider,
                                          ILogger<TextractPollingRepository> logger,
                                          IAmazonTextract amazonTextract,
-                                         IHubContext<TextractNotificationHub> textractNotification
-                                         )
+                                         IHubContext<TextractNotificationHub> textractNotification)
         {
             this.serviceProvider = serviceProvider;
             this.logger = logger;
@@ -43,27 +42,43 @@ namespace Expense.API.Repositories.Background
             {
                 try
                 {
-                    // Use the service provider to create a scope
-                    using (var scope = serviceProvider.CreateScope())
+                    // Retry logic to handle transient issues
+                    var maxRetryAttempts = 5;
+                    var retryDelay = TimeSpan.FromSeconds(10);
+
+                    await RetryOnFailure(async () =>
                     {
-                        // Resolve the scoped DbContext and ExpenseAnalysis service within the scope
-                        var userDocumentsDbContext = scope.ServiceProvider.GetRequiredService<UserDocumentsDbContext>();
-                        var expenseAnalysis = scope.ServiceProvider.GetRequiredService<IExpenseAnalysis>();
-                        var textractNotificationDb = scope.ServiceProvider.GetRequiredService<ITextractNotification>();
-
-                        // Fetch all pending jobs from the database
-                        var pendingJobs = await userDocumentsDbContext.DocumentJobResults.Where(job=>job.Status == 0)
-                            .ToListAsync();
-
-                        foreach (var job in pendingJobs)
+                        // Use the service provider to create a scope
+                        using (var scope = serviceProvider.CreateScope())
                         {
-                            // Poll the job and update the result as necessary
-                            await PollTextractJob(job.JobId, job, userDocumentsDbContext, expenseAnalysis, stoppingToken, textractNotificationDb);
+                            // Resolve the scoped DbContext and check if the database is available
+                            var userDocumentsDbContext = scope.ServiceProvider.GetRequiredService<UserDocumentsDbContext>();
+
+                            // Check if the database connection is available
+                            if (!await userDocumentsDbContext.Database.CanConnectAsync(stoppingToken))
+                            {
+                                throw new Exception("Database connection is unavailable.");
+                            }
+
+                            // Resolve additional services
+                            var expenseAnalysis = scope.ServiceProvider.GetRequiredService<IExpenseAnalysis>();
+                            var textractNotificationDb = scope.ServiceProvider.GetRequiredService<ITextractNotification>();
+
+                            // Fetch all pending jobs from the database
+                            var pendingJobs = await userDocumentsDbContext.DocumentJobResults
+                                .Where(job => job.Status == 0)
+                                .ToListAsync(stoppingToken);
+
+                            foreach (var job in pendingJobs)
+                            {
+                                // Poll the job and update the result as necessary
+                                await PollTextractJob(job.JobId, job, userDocumentsDbContext, expenseAnalysis, stoppingToken, textractNotificationDb);
+                            }
                         }
-                    }
+                    }, maxRetryAttempts, retryDelay);
 
                     // Wait before polling again
-                    await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken);
+                    await Task.Delay(TimeSpan.FromMinutes(60), stoppingToken);
                 }
                 catch (Exception ex)
                 {
@@ -72,6 +87,31 @@ namespace Expense.API.Repositories.Background
             }
 
             logger.LogInformation("Textract polling service is stopping.");
+        }
+
+        private async Task RetryOnFailure(Func<Task> operation, int maxRetryAttempts, TimeSpan retryDelay)
+        {
+            var attempts = 0;
+            while (attempts < maxRetryAttempts)
+            {
+                try
+                {
+                    await operation();
+                    return; // Exit if the operation succeeds
+                }
+                catch (Exception ex)
+                {
+                    attempts++;
+                    if (attempts >= maxRetryAttempts)
+                    {
+                        logger.LogError(ex, "Max retry attempts exceeded.");
+                        throw;
+                    }
+
+                    logger.LogWarning(ex, $"Attempt {attempts} failed. Retrying in {retryDelay.TotalSeconds} seconds...");
+                    await Task.Delay(retryDelay);
+                }
+            }
         }
 
         public async Task PollTextractJob(string jobId, DocumentJobResult documentJobResult,
@@ -93,6 +133,7 @@ namespace Expense.API.Repositories.Background
                     // Process and store results using the expenseAnalysis service
                     await expenseAnalysis.StoreResults(getExpenseAnalysisResponse, documentJobResult, 1);
                 }
+
                 // Check if the user exists in the database
                 var userFound = await userDocumentsDbContext.Users
                     .FirstOrDefaultAsync(u => u.Id == documentJobResult.CreatedById);
@@ -101,20 +142,23 @@ namespace Expense.API.Repositories.Background
                 {
                     throw new Exception("User does not exist.");
                 }
+
                 // Update job status in the database after processing
-                documentJobResult.Status = 1; // Mark job as completed
-                var doc = await userDocumentsDbContext.Documents.Where(doc => doc.Id.Equals(documentJobResult.DocumentId)).FirstOrDefaultAsync();
+                documentJobResult.Status = 1;
+                var doc = await userDocumentsDbContext.Documents
+                    .FirstOrDefaultAsync(d => d.Id == documentJobResult.DocumentId);
+
                 await userDocumentsDbContext.SaveChangesAsync(stoppingToken);
-                string userId = documentJobResult.CreatedById.ToString();
+
                 string title = $"Expense: {documentJobResult.Expense.Title}";
-                string message = string.Empty;
-                if(doc != null)
-                {
-                    documentJobResult.Document = doc;
-                    message = $"Document {documentJobResult.Document.FileName} is processed and result is ready to view.";
-                }
-                await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message,title);
-                await textractNotification.Clients.User(userFound.Username.ToString()).SendAsync("ReceiveMessage", message);
+                string message = doc != null && documentJobResult.Expense != null
+                    ? $"Document {doc.FileName} is processed with total being {documentJobResult.Expense.Amount}. View detailed results in the Expense Results section."
+                    : "Document processing completed.";
+
+                // Send notification
+                await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message, title);
+                await textractNotification.Clients.User(userFound.Username.ToString())
+                    .SendAsync("TextractNotification", message);
             }
             catch (Exception ex)
             {

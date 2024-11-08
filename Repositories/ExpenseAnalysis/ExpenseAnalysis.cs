@@ -415,11 +415,13 @@ namespace Expense.API.Repositories.ExpenseAnalysis
                     documentJobResult.DocumentId = docId;
                     await userDocumentsDbContext.DocumentJobResults.AddAsync(documentJobResult);
                     await userDocumentsDbContext.SaveChangesAsync();
+
+                    //Notifications
                     string title = $"Expense: {documentJobResult.Expense.Title}";
                     string message = $"Processing: {documentJobResult.Document.FileName}. Result will be available soon.";
                     await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message, title);
-
-                    await textractNotification.Clients.User(userFound.Username.ToString()).SendAsync("ReceiveMessage", message);
+                    //send notification in hub
+                    await textractNotification.Clients.User(userFound.Username.ToString()).SendAsync("TextractNotification", message);
                     return jobId;
                 }
                 catch (AmazonTextractException textractException)

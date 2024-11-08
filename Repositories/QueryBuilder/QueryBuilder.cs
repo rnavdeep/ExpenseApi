@@ -15,43 +15,66 @@ namespace Expense.API.Repositories.QueryBuilder
 
         public IQueryable<T> BuildQuery(
             Pagination? pagination,
-            FilterBy? filter,
+            List<FilterBy> filterList,
             SortFilter? sort)
         {
             // Apply filter 
-            if (filter != null)
+            if (filterList.Count > 0)
             {
-                var parameter = Expression.Parameter(typeof(T), "x");
-                var property = Expression.Property(parameter, filter.PropertyName);
-                var value = Expression.Constant(filter.Value);
-
-                // Create the expression based on filter type
-                Expression comparisonExpression = null;
-
-                switch (filter.Type)
+                foreach(var filter in filterList)
                 {
-                    case "==":
-                        comparisonExpression = Expression.Equal(property, value);
-                        break;
-                    case "<>":
-                        comparisonExpression = Expression.NotEqual(property, value);
-                        break;
-                    case ">=":
-                        comparisonExpression = Expression.GreaterThanOrEqual(property, value);
-                        break;
-                    case "<=":
-                        comparisonExpression = Expression.LessThanOrEqual(property, value);
-                        break;
-                    case "like":
-                        var startsWith = typeof(string).GetMethod("StartsWith", new[] { typeof(string) });
-                        comparisonExpression = Expression.Call(property, startsWith, value);
-                        break;
-                    default:
-                        throw new NotSupportedException($"Filter type '{filter.Type}' is not supported.");
-                }
+                    //linq to determine the type of <T>
+                    var parameter = Expression.Parameter(typeof(T), "x");
+                    //linq to determine the type of Property in Model <T>
+                    var property = Expression.Property(parameter, filter.PropertyName);
+                    var value = Expression.Constant(filter.Value);
 
-                var lambda = Expression.Lambda<Func<T, bool>>(comparisonExpression, parameter);
-                query = query.Where(lambda);
+                    //If the property of type decimal for now, generate query with Property == Value
+                    if (property.Type == typeof(decimal))
+                    {
+                        filter.Type = "==";
+                        if (decimal.TryParse(filter.Value, out decimal parsedValue))
+                        {
+                            value = Expression.Constant(parsedValue);
+                        }
+                    }
+                    //If the property of type Guid for PK or Fk
+                    if (property.Type == typeof(System.Guid))
+                    {
+                        if (Guid.TryParse(filter.Value, out Guid parsedValue))
+                        {
+                            value = Expression.Constant(parsedValue);
+                        }
+                    }
+                    // Create the expression based on filter type
+                    Expression comparisonExpression = null;
+
+                    switch (filter.Type)
+                    {
+                        case "==":
+                            comparisonExpression = Expression.Equal(property, value);
+                            break;
+                        case "<>":
+                            comparisonExpression = Expression.NotEqual(property, value);
+                            break;
+                        case ">=":
+                            comparisonExpression = Expression.GreaterThanOrEqual(property, value);
+                            break;
+                        case "<=":
+                            comparisonExpression = Expression.LessThanOrEqual(property, value);
+                            break;
+                        case "like":
+                            var startsWith = typeof(string).GetMethod("StartsWith", new[] { typeof(string) });
+                            comparisonExpression = Expression.Call(property, startsWith, value);
+                            break;
+                        default:
+                            throw new NotSupportedException($"Filter type '{filter.Type}' is not supported.");
+                    }
+
+                    var lambda = Expression.Lambda<Func<T, bool>>(comparisonExpression, parameter);
+                    query = query.Where(lambda);
+                }   
+
             }
 
 

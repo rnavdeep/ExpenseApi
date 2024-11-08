@@ -6,7 +6,7 @@
         {
             options.AddPolicy("AllowAllOrigins", builder =>
             {
-                builder.WithOrigins("http://localhost:5173")
+                builder.WithOrigins("http://localhost:8080")
                        .AllowAnyMethod()
                        .AllowAnyHeader()
                        .AllowCredentials();

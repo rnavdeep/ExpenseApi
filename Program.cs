@@ -74,7 +74,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<ExceptionHandlerMiddleware>();
-app.UseMiddleware<RequestHandlerMiddleware>();
+//app.UseMiddleware<RequestHandlerMiddleware>();
+//app.UseMiddleware<LoginHandlerMiddleware>();
+
+//app.Urls.Add("http://0.0.0.0:80");
 
 app.UseHttpsRedirection();
 app.UseCors("AllowAllOrigins");

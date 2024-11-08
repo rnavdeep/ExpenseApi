@@ -6,7 +6,9 @@ namespace Expense.API.Models.DTO
 		public UserDto()
 		{
 		}
+        public Guid Id { get; set; }
         public string Username { get; set; }
+        public string Email { get; set; }
     }
 }
 

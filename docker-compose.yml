@@ -1,0 +1,86 @@
+﻿version: '3.8'
+
+services:
+  sql_server_demo:
+    image: mcr.microsoft.com/mssql/server:latest
+    container_name: sql_server_demo
+    environment:
+      ACCEPT_EULA: Y
+      SA_PASSWORD: ${SQL_SERVER_DEMO_SA_PASSWORD}
+    ports:
+      - "1433:1433" # Expose SQL Server on port 1433 for application database
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+      - ./ExpenseAnalyserDbScripts:/usr/src/app/sqlscripts
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P '$$SA_PASSWORD' -Q 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - expense-network
+
+  authenticationDB:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: authenticationDB
+    environment:
+      ACCEPT_EULA: Y
+      SA_PASSWORD: ${AUTH_DB_SA_PASSWORD}
+    ports:
+      - "1434:1433" # Expose SQL Server instance on port 1434 for authentication db management
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P '$$SA_PASSWORD' -Q 'SELECT 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - expense-network
+  
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - expense-network
+
+  backend-server:
+    image: expense-api:latest
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    ports:
+      - "5223:80" # API is exposed on port 5223
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION}
+      S3_BUCKET_NAME: ${AWS_BUCKET}
+    depends_on:
+      - sql_server_demo
+      - redis
+      - authenticationDB
+    networks:
+      - expense-network
+
+  frontend:
+    image: expense-analyser:latest # Pre-build frontend image 
+    ports:
+      - "8080:80" # Frontend exposed on port 8080
+    depends_on:
+      - backend-server # Wait for API to be up
+    networks:
+      - expense-network
+
+networks:
+  expense-network:
+    driver: bridge
+
+volumes:
+  sqlserver_data: 
