@@ -6,7 +6,9 @@ namespace Expense.API.Repositories.Users
 	public interface IUserRepository
 	{
         Task<User> CreateAsync(User user);
-        Task<User>? GetUserByEmail(string email);
+        Task<User?> GetUserByEmail(string email);
+        Task<User?> GetUserByUserName(string userName);
+        Task SendRequest(string id, string userName);
     }
 }
 
