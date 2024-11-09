@@ -16,7 +16,7 @@ namespace Expense.API.Repositories.Notifications
             this.httpContextAccessor = httpContextAccessor;
 		}
 
-        public async Task<Guid> CreateNotifcation(Guid userId, string message, string title)
+        public async Task<Guid> CreateNotifcation(Guid userId, string message, string title, byte isFriendRequest)
         {
             try
             {
@@ -27,13 +27,14 @@ namespace Expense.API.Repositories.Notifications
                 notification.Message = message;
                 notification.UserId = userId;
                 notification.Title = title;
+                notification.IsFriendRequest = isFriendRequest;
 
                 // Add to Db
                 await userDocumentsDbContext.Notification.AddAsync(notification);
                 await userDocumentsDbContext.SaveChangesAsync();
 
                 // Return Created notification ID
-                return notification.Id;
+                return notification.Id; 
             }
             catch(Exception e)
             {

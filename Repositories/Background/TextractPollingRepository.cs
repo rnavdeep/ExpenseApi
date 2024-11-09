@@ -78,7 +78,7 @@ namespace Expense.API.Repositories.Background
                     }, maxRetryAttempts, retryDelay);
 
                     // Wait before polling again
-                    await Task.Delay(TimeSpan.FromMinutes(60), stoppingToken);
+                    await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
                 }
                 catch (Exception ex)
                 {
@@ -109,8 +109,7 @@ namespace Expense.API.Repositories.Background
                     }
 
                     logger.LogWarning(ex, $"Attempt {attempts} failed. Retrying in {retryDelay.TotalSeconds} seconds...");
-                    await Task.Delay(retryDelay);
-                }
+                    await Task.Delay(retryDelay);                }
             }
         }
 
@@ -156,7 +155,7 @@ namespace Expense.API.Repositories.Background
                     : "Document processing completed.";
 
                 // Send notification
-                await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message, title);
+                await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message, title,0);
                 await textractNotification.Clients.User(userFound.Username.ToString())
                     .SendAsync("TextractNotification", message);
             }

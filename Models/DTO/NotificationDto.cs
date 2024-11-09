@@ -15,6 +15,7 @@ namespace Expense.API.Models.DTO
         public Guid UserId { get; set; }
         public string Message { get; set; }
         public string? Title { get; set; }
+        public byte? IsFriendRequest { get; set; }
 
     }
 }
