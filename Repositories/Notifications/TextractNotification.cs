@@ -62,16 +62,30 @@ namespace Expense.API.Repositories.Notifications
             }
             try
             {
-                //fetch and return list of all notifications which belong to logged in user
-                var c = await userDocumentsDbContext.Notification.Where(notification => notification.UserId.Equals(userFound.Id)).OrderByDescending(notification=>notification.CreatedAt).ToListAsync();
-                return c;
+                // Fetch and return list of all notifications for the logged-in user with conditions on friend requests
+                var notifications = await userDocumentsDbContext.Notification
+                    .Where(notification => notification.UserId == userFound.Id)
+                    .GroupJoin(
+                        userDocumentsDbContext.FriendRequests,
+                        notification => notification.Id,
+                        friendRequest => friendRequest.NotificationId,
+                        (notification, friendRequests) => new { Notification = notification, FriendRequests = friendRequests }
+                    )
+                    .SelectMany(
+                        nf => nf.FriendRequests.DefaultIfEmpty(),
+                        (nf, friendRequest) => new { nf.Notification, FriendRequest = friendRequest }
+                    )
+                    .Where(x => x.FriendRequest == null || x.FriendRequest.IsAccepted != 1)
+                    .OrderByDescending(x => x.Notification.CreatedAt)
+                    .Select(x => x.Notification)
+                    .ToListAsync();
+
+                return notifications;
             }
             catch (Exception e)
             {
                 throw new Exception(e.Message);
             }
-
-
         }
 
         public async Task ReadAllNotifications()

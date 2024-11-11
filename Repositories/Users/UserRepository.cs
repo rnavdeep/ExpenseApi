@@ -53,52 +53,6 @@ namespace Expense.API.Repositories.Users
             return userFound;
         }
 
-        public async Task SendRequest(string id, string userName)
-        {
-            var userRequestFrom = httpContextAccessor.HttpContext?.User?.Claims
-                          .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-
-            if (string.IsNullOrEmpty(userName))
-            {
-                throw new Exception("User not found.");
-            }
-
-            // Check if the user exists in the database
-            var userRequestFromId = await userDocumentsDbContext.Users
-                .FirstOrDefaultAsync(u => u.Username.ToLower() == userRequestFrom.ToLower());
-            var userRequestToId = await userDocumentsDbContext.Users
-                .FirstOrDefaultAsync(u => u.Id.Equals(Guid.Parse(id)));
-
-            if(userRequestFromId != null && userRequestToId != null)
-            {
-                // Use the service provider to create a scope
-                using (var scope = serviceProvider.CreateScope())
-                {
-                    var isRequestAlreadySent = await userDocumentsDbContext.FriendRequests.FirstOrDefaultAsync(
-                        fr => fr.SentByUserId.Equals(userRequestFromId.Id) && fr.SentToUserId.Equals(userRequestToId.Id));
-
-                    if (isRequestAlreadySent != null)
-                    {
-                        throw new Exception("Request already sent");
-                    }
-                    var textractNotificationDb = scope.ServiceProvider.GetRequiredService<ITextractNotification>();
-                    var notificationId = await textractNotificationDb.CreateNotifcation(userRequestToId.Id,
-                        $"Friend Request sent by user {userRequestFromId.Username}", "New Friend Request", 1);
-
-                    var friendRequest = new FriendRequest();
-                    friendRequest.SentByUserId = userRequestFromId.Id;
-                    friendRequest.SentToUserId = userRequestToId.Id;
-                    friendRequest.NotificationId = notificationId;
-                    friendRequest.IsAccepted = 0;
-                    friendRequest.CreatedAt = DateTime.UtcNow;
-                    await userDocumentsDbContext.FriendRequests.AddAsync(friendRequest);
-                    await userDocumentsDbContext.SaveChangesAsync();
-                }
-                // Use the service provider to create a scope
-                await textractNotification.Clients.User(userName.ToString()).SendAsync("TextractNotification", "Friend Request Received");
-            }
-            throw new Exception("Users not found");
-        }
     }
 }
 

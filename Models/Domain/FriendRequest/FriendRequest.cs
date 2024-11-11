@@ -35,6 +35,12 @@ namespace Expense.API.Models.Domain
         /// 0: Not Accepted, 1: Accepted
         /// </summary>
         public byte IsAccepted { get; set; } = 0;
+
+
+        /// <summary>
+        /// Request Accepted At
+        /// </summary>
+        public DateTime? AcceptedAt { get; set; } = DateTime.UtcNow;
     }
 }
 

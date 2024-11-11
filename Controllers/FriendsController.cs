@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using AutoMapper;
 using Expense.API.Models.DTO;
+using Expense.API.Repositories.FriendRequest;
 using Expense.API.Repositories.Users;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,12 +15,14 @@ namespace Expense.API.Controllers
     [Route("api/[controller]")]
     public class FriendsController : Controller
     {
+        private readonly IFriendRequestRepository friendRequestRepository;
         private readonly IUserRepository userRepository;
         private readonly IMapper mapper;
-        public FriendsController(IUserRepository userRepository, IMapper mapper)
+        public FriendsController(IFriendRequestRepository friendRequestRepository, IMapper mapper, IUserRepository userRepository)
         {
-            this.userRepository = userRepository;
+            this.friendRequestRepository = friendRequestRepository;
             this.mapper = mapper;
+            this.userRepository = userRepository;
         }
 
         // GET: api/values
@@ -54,13 +57,35 @@ namespace Expense.API.Controllers
 
 
         }
+
         // POST api/values
         [HttpPost]
         [Route("sendRequest")]
         public async Task<IActionResult> SendRequest([FromBody] UserDto userDto)
         {
-            await userRepository.SendRequest(userDto.Id.ToString(), userDto.Username);
-            return NoContent();
+            try
+            {
+                await friendRequestRepository.SendRequest(userDto.Id.ToString(), userDto.Username);
+                return NoContent();
+            }catch(Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+        }
+
+        // POST api/values
+        [HttpPost]
+        [Route("acceptRequest")]
+        public async Task<IActionResult> AcceptRequest([FromBody] string id)
+        {
+            try
+            {
+                await friendRequestRepository.AcceptRequest(id);
+                return NoContent();
+            }catch(Exception e)
+            {
+                return BadRequest(e.Message);
+            }
         }
 
         // POST api/values
