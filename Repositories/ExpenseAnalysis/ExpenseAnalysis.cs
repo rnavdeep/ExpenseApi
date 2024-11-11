@@ -419,7 +419,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
                     //Notifications
                     string title = $"Expense: {documentJobResult.Expense.Title}";
                     string message = $"Processing: {documentJobResult.Document.FileName}. Result will be available soon.";
-                    await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message, title);
+                    await textractNotificationDb.CreateNotifcation(documentJobResult.CreatedById, message, title, 0);
                     //send notification in hub
                     await textractNotification.Clients.User(userFound.Username.ToString()).SendAsync("TextractNotification", message);
                     return jobId;

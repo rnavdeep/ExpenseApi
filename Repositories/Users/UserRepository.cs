@@ -5,6 +5,7 @@ using Expense.API.Models.Domain;
 using Microsoft.Extensions.DependencyInjection;
 using Expense.API.Repositories.Notifications;
 using Microsoft.AspNetCore.SignalR;
+using System.Security.Claims;
 
 namespace Expense.API.Repositories.Users
 {
@@ -13,13 +14,15 @@ namespace Expense.API.Repositories.Users
         private readonly UserDocumentsDbContext userDocumentsDbContext;
         private readonly IHubContext<TextractNotificationHub> textractNotification;
         private IServiceProvider serviceProvider;
+        private readonly IHttpContextAccessor httpContextAccessor;
 
         public UserRepository(UserDocumentsDbContext userDocumentsDbContext, IServiceProvider serviceProvider,
-            IHubContext<TextractNotificationHub> textractNotification)
+            IHubContext<TextractNotificationHub> textractNotification, IHttpContextAccessor httpContextAccessor)
 		{
             this.userDocumentsDbContext = userDocumentsDbContext;
             this.textractNotification = textractNotification;
             this.serviceProvider = serviceProvider;
+            this.httpContextAccessor = httpContextAccessor;
 		}
 
         public async Task<User> CreateAsync(User user)
@@ -50,17 +53,6 @@ namespace Expense.API.Repositories.Users
             return userFound;
         }
 
-        public async Task SendRequest(string id, string userName)
-        {
-            // Use the service provider to create a scope
-            using (var scope = serviceProvider.CreateScope())
-            {
-                var textractNotificationDb = scope.ServiceProvider.GetRequiredService<ITextractNotification>();
-                await textractNotificationDb.CreateNotifcation(Guid.Parse(id), "Friend Request sent by user", "New Friend Request");
-            }
-            // Use the service provider to create a scope
-            await textractNotification.Clients.User(userName.ToString()).SendAsync("TextractNotification", "Friend Request Received");
-        }
     }
 }
 

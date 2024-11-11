@@ -40,6 +40,11 @@ namespace Expense.API.Models.Domain
         /// </summary>
         public string? Title { get; set; }
 
+        /// <summary>
+        /// 0 - Not a friend request notification
+        /// 1 - Friend Request Notification
+        /// </summary>
+        public byte? IsFriendRequest { get; set; } = 0;
     }
 }
 
