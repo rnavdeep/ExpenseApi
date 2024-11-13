@@ -1,8 +1,5 @@
-﻿using System;
-using Expense.API.Data;
+﻿using Expense.API.Data;
 using Expense.API.Repositories.Notifications;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -100,7 +97,24 @@ namespace Expense.API.Repositories.FriendRequest
                 friendRequest.IsAccepted = 1;
                 friendRequest.AcceptedAt = DateTime.UtcNow;
 
-                await userDocumentsDbContext.SaveChangesAsync();
+                // Use the service provider to create a scope to send accepted notification
+                using (var scope = serviceProvider.CreateScope())
+                {
+                    var userAcceptedNotification = await userDocumentsDbContext.Users.FirstOrDefaultAsync(
+                        u => u.Id.Equals(friendRequest.SentByUserId));
+                    var userReceivedNotification = await userDocumentsDbContext.Users.FirstOrDefaultAsync(
+                        u => u.Id.Equals(friendRequest.SentToUserId));
+                    var textractNotificationDb = scope.ServiceProvider.GetRequiredService<ITextractNotification>();
+                    if (userAcceptedNotification != null && userReceivedNotification != null)
+                    {
+                        await textractNotificationDb.CreateNotifcation(userAcceptedNotification.Id,
+                                $"Friend Request accepted by user {userReceivedNotification.Username}", "Friend Request Accepted", 0);
+
+                        await userDocumentsDbContext.SaveChangesAsync();
+                        await textractNotification.Clients.User(userAcceptedNotification.Username.ToString()).SendAsync("TextractNotification", "Friend Request Received");
+                    }
+
+                }
                 return;
             }
 
