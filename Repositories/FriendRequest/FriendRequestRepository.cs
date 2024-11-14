@@ -4,6 +4,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using FriendRequestModel = Expense.API.Models.Domain.FriendRequest;
+using Expense.API.Models.DTO;
 
 namespace Expense.API.Repositories.FriendRequest
 {
@@ -119,6 +120,44 @@ namespace Expense.API.Repositories.FriendRequest
             }
 
             throw new Exception("Error performing action");
+        }
+
+        public async Task<List<FriendsListDto>> GetFriends()
+        {
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+              .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userName))
+            {
+                throw new Exception("User not found.");
+            }
+
+            // Check if the user exists in the database
+            var user = await userDocumentsDbContext.Users
+                .FirstOrDefaultAsync(u => u.Username.ToLower() == userName.ToLower());
+
+            if (user != null)
+            {
+                var friends = await userDocumentsDbContext.FriendRequests
+                    .Where(friend =>
+                        (friend.SentByUserId == user.Id || friend.SentToUserId == user.Id) &&
+                        friend.IsAccepted == 1)
+                    .Select(friend =>
+                        new FriendsListDto
+                        {
+                            Username = friend.SentByUserId == user.Id ? friend.SentToUser.Username : friend.SentByUser.Username,
+                            AcceptedAt = (DateTime)friend.AcceptedAt,
+                            SharedExpenses = new List<ExpenseDto>()
+                        })
+                    .ToListAsync();
+                return friends;
+            }
+            else
+            {
+                throw new Exception("User not found.");
+
+            }
+            throw new NotImplementedException();
         }
     }
 }
