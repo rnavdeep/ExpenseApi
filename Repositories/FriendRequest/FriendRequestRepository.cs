@@ -1,12 +1,10 @@
-﻿using System;
-using Expense.API.Data;
+﻿using Expense.API.Data;
 using Expense.API.Repositories.Notifications;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using System.Security.Claims;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using FriendRequestModel = Expense.API.Models.Domain.FriendRequest;
+using Expense.API.Models.DTO;
 
 namespace Expense.API.Repositories.FriendRequest
 {
@@ -100,11 +98,66 @@ namespace Expense.API.Repositories.FriendRequest
                 friendRequest.IsAccepted = 1;
                 friendRequest.AcceptedAt = DateTime.UtcNow;
 
-                await userDocumentsDbContext.SaveChangesAsync();
+                // Use the service provider to create a scope to send accepted notification
+                using (var scope = serviceProvider.CreateScope())
+                {
+                    var userAcceptedNotification = await userDocumentsDbContext.Users.FirstOrDefaultAsync(
+                        u => u.Id.Equals(friendRequest.SentByUserId));
+                    var userReceivedNotification = await userDocumentsDbContext.Users.FirstOrDefaultAsync(
+                        u => u.Id.Equals(friendRequest.SentToUserId));
+                    var textractNotificationDb = scope.ServiceProvider.GetRequiredService<ITextractNotification>();
+                    if (userAcceptedNotification != null && userReceivedNotification != null)
+                    {
+                        await textractNotificationDb.CreateNotifcation(userAcceptedNotification.Id,
+                                $"Friend Request accepted by user {userReceivedNotification.Username}", "Friend Request Accepted", 0);
+
+                        await userDocumentsDbContext.SaveChangesAsync();
+                        await textractNotification.Clients.User(userAcceptedNotification.Username.ToString()).SendAsync("TextractNotification", "Friend Request Received");
+                    }
+
+                }
                 return;
             }
 
             throw new Exception("Error performing action");
+        }
+
+        public async Task<List<FriendsListDto>> GetFriends()
+        {
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+              .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userName))
+            {
+                throw new Exception("User not found.");
+            }
+
+            // Check if the user exists in the database
+            var user = await userDocumentsDbContext.Users
+                .FirstOrDefaultAsync(u => u.Username.ToLower() == userName.ToLower());
+
+            if (user != null)
+            {
+                var friends = await userDocumentsDbContext.FriendRequests
+                    .Where(friend =>
+                        (friend.SentByUserId == user.Id || friend.SentToUserId == user.Id) &&
+                        friend.IsAccepted == 1)
+                    .Select(friend =>
+                        new FriendsListDto
+                        {
+                            Username = friend.SentByUserId == user.Id ? friend.SentToUser.Username : friend.SentByUser.Username,
+                            AcceptedAt = (DateTime)friend.AcceptedAt,
+                            SharedExpenses = new List<ExpenseDto>()
+                        })
+                    .ToListAsync();
+                return friends;
+            }
+            else
+            {
+                throw new Exception("User not found.");
+
+            }
+            throw new NotImplementedException();
         }
     }
 }
