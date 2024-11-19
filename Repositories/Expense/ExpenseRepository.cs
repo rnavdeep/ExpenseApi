@@ -86,6 +86,37 @@ namespace Expense.API.Repositories.Expense
             return expenseUser;
         }
 
+        public async Task<List<ExpenseUser>> GetAssignUsers(Guid expenseId)
+        {
+            try
+            {
+                var expenseUsers = await userDocumentsDbContext.ExpenseUsers
+                    .Where(expUser => expUser.ExpenseId == expenseId)
+                    .Join(
+                        userDocumentsDbContext.Users,
+                        expUser => expUser.UserId,
+                        user => user.Id,
+                        (expUser, user) => new ExpenseUser(
+                            expUser.ExpenseId,
+                            user.Id,
+                            expUser.UserAmount
+                        )
+                        {
+                            UserShare = expUser.UserShare,
+                            User = user
+                        })
+                    .ToListAsync();
+
+                return expenseUsers;
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"Error fetching assigned users: {e.Message}", e);
+            }
+        }
+
+
+
         public async Task<List<UploadedDocumentDto>> GetDocByExpenseId(Guid expenseId)
         {
             var result = await userDocumentsDbContext.Documents

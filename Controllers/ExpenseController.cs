@@ -100,6 +100,26 @@ namespace Expense.API.Controllers
                 return BadRequest($"An error occurred: {e.Message}");
             }
         }
+        // GET: api/{id}/getAssignedUsers
+        [HttpGet("{id}/getAssignedUsers")]
+        public async Task<IActionResult> GetAssignedUsers(string id)
+        {
+            try
+            {
+                var result = await expenseRepository.GetAssignUsers(Guid.Parse(id));
+                if (result == null || !result.Any())
+                {
+                    return NotFound($"No expenses found for the logged in user");
+                }
+                var resultDto = mapper.Map<List<ExpenseUserDto>>(result);
+                return Ok(resultDto);
+            }
+            catch (Exception e)
+            {
+                // Log the error if necessary
+                return BadRequest($"An error occurred: {e.Message}");
+            }
+        }
 
         // GET: api/GetDocByExpenseId
         [HttpGet("docs/{id}")]
