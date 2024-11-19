@@ -57,6 +57,14 @@ namespace Expense.API.Repositories.Expense
 
             if (user != null && expense != null)
             {
+                var expenseUserExists = await userDocumentsDbContext.ExpenseUsers.FirstOrDefaultAsync(
+                                            expenseUser => expenseUser.ExpenseId == expense.Id
+                                            && expenseUser.UserId == user.Id);
+                if(expenseUserExists != null)
+                {
+                    throw new Exception("User has already been assigned to the Expense.");
+                }
+
                 await userDocumentsDbContext.ExpenseUsers.AddAsync(expenseUser);
                 await userDocumentsDbContext.SaveChangesAsync();
             }
