@@ -57,7 +57,7 @@ namespace Expense.API.Controllers
 
 
         }
-        // GET: api/values
+
         [HttpGet]
         [Route("getFriends")]
         public async Task<IActionResult> GetFriends()
@@ -65,6 +65,12 @@ namespace Expense.API.Controllers
             return Ok(await friendRequestRepository.GetFriends());
         }
 
+        [HttpGet]
+        [Route("getDropdownUsers")]
+        public async Task<IActionResult> GetDropdownUsers()
+        {
+            return Ok(await friendRequestRepository.GetDropdownUsers());
+        }
         // POST api/values
         [HttpPost]
         [Route("sendRequest")]

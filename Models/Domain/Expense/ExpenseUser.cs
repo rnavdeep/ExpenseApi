@@ -2,11 +2,13 @@
 {
 	public class ExpenseUser
 	{
-		public ExpenseUser(Guid expenseId, Guid userId)
+		public ExpenseUser(Guid expenseId, Guid userId, double? userAmount)
 		{
             this.ExpenseId = expenseId;
             this.UserId = userId;
+            this.UserAmount = userAmount;
 		}
+
         /// <summary>
         /// Foreign key for the associated Expense.
         /// </summary>
@@ -26,6 +28,16 @@
         /// Navigation property to the associated User.
         /// </summary>
         public User User { get; set; }
+
+        /// <summary>
+        /// User Share value b/w 0-1
+        /// </summary>
+        public double UserShare { get; set; }
+
+        /// <summary>
+        /// User Share Amount
+        /// </summary>
+        public double? UserAmount { get; set; }
     }
 }
 
