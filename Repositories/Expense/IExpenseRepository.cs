@@ -52,6 +52,7 @@ namespace Expense.API.Repositories.Expense
 		/// <param name="expenseUser"></param>
 		/// <returns></returns>
 		public Task<ExpenseUser> CreateExpenseUserAsync(ExpenseUser expenseUser);
+
         /// <summary>
         /// Remove expense 
         /// </summary>
@@ -73,6 +74,14 @@ namespace Expense.API.Repositories.Expense
         /// <param name="docId"></param>
         /// <returns></returns>
         public Task<DocumentJobResult?> GetDocResult(Guid expenseId, Guid docId);
+
+        /// <summary>
+        /// Get Assign Users
+        /// </summary>
+        /// <param name="expenseId"></param>
+        /// <returns></returns>
+        public Task<List<ExpenseUser>> GetAssignUsers(Guid expenseId);
+
 
     }
 }

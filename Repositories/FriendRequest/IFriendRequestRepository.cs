@@ -8,6 +8,8 @@ namespace Expense.API.Repositories.FriendRequest
         Task SendRequest(string id, string userName);
         Task AcceptRequest(string requestId);
         Task <List<FriendsListDto>> GetFriends();
+        Task<List<UserDto>> GetDropdownUsers();
+
     }
 }
 

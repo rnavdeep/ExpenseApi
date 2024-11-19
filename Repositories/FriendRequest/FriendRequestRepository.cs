@@ -157,7 +157,43 @@ namespace Expense.API.Repositories.FriendRequest
                 throw new Exception("User not found.");
 
             }
-            throw new NotImplementedException();
+        }
+
+        public async Task<List<UserDto>> GetDropdownUsers()
+        {
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+              .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userName))
+            {
+                throw new Exception("User not found.");
+            }
+
+            // Check if the user exists in the database
+            var user = await userDocumentsDbContext.Users
+                .FirstOrDefaultAsync(u => u.Username.ToLower() == userName.ToLower());
+
+            if (user != null)
+            {
+                var dropdownUsers = await userDocumentsDbContext.FriendRequests
+                    .Where(friend =>
+                        (friend.SentByUserId == user.Id || friend.SentToUserId == user.Id) &&
+                        friend.IsAccepted == 1)
+                    .Select(friend =>
+                        new UserDto
+                        {
+                            Username = friend.SentByUserId == user.Id ? friend.SentToUser.Username : friend.SentByUser.Username,
+                            Id = friend.SentByUserId == user.Id ? friend.SentToUser.Id : friend.SentByUser.Id,
+                            Email = friend.SentByUserId == user.Id ? friend.SentToUser.Email : friend.SentByUser.Email
+                        })
+                    .ToListAsync();
+                return dropdownUsers;
+            }
+            else
+            {
+                throw new Exception("User not found.");
+
+            }
         }
     }
 }

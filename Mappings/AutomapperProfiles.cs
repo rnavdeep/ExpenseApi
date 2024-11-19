@@ -27,6 +27,9 @@ namespace Expense.API.Mappings
                 .ForMember(dest => dest.Url, opt => opt.MapFrom(src => src.S3Url.ToString()));
             CreateMap<DocumentJobResult, DocumentResultDto>();
             CreateMap<Notification, NotificationDto>();
+            CreateMap<ExpenseUser, ExpenseUserDto>()
+                .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User.Username))
+                .ReverseMap();
 
         }
     }

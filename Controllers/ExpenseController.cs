@@ -100,6 +100,26 @@ namespace Expense.API.Controllers
                 return BadRequest($"An error occurred: {e.Message}");
             }
         }
+        // GET: api/{id}/getAssignedUsers
+        [HttpGet("{id}/getAssignedUsers")]
+        public async Task<IActionResult> GetAssignedUsers(string id)
+        {
+            try
+            {
+                var result = await expenseRepository.GetAssignUsers(Guid.Parse(id));
+                if (result == null || !result.Any())
+                {
+                    return NotFound($"No expenses found for the logged in user");
+                }
+                var resultDto = mapper.Map<List<ExpenseUserDto>>(result);
+                return Ok(resultDto);
+            }
+            catch (Exception e)
+            {
+                // Log the error if necessary
+                return BadRequest($"An error occurred: {e.Message}");
+            }
+        }
 
         // GET: api/GetDocByExpenseId
         [HttpGet("docs/{id}")]
@@ -171,17 +191,30 @@ namespace Expense.API.Controllers
 
                 if (expenseCreated != null)
                 {
-                    var expenseUser = new ExpenseUser(expenseCreated.Id, expenseCreated.CreatedById);
-                    var expenseUserLink = await expenseRepository.CreateExpenseUserAsync(expenseUser);
-                    //after expense is create upload all the docs
-                    //await documentRespository.UploadFileFormAsync(files, expenseCreated);
+                    var expenseUser = new ExpenseUser(expenseCreated.Id, expenseCreated.CreatedById, null);
+                    await expenseRepository.CreateExpenseUserAsync(expenseUser);
                     return Ok(expenseDto);
 
                 }
-
             }
             return BadRequest("Not created expense");
+        }
 
+        // POST api/values
+        [HttpPost]
+        [Route("{id}/addUser")]
+        public async Task<IActionResult> PostUserToExpense(string id, string userId)
+        {
+            try
+            {
+                var expenseUser = new ExpenseUser(Guid.Parse(id), Guid.Parse(userId), null);
+                await expenseRepository.CreateExpenseUserAsync(expenseUser);
+                return Ok();
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
+            }
         }
 
         // PUT api/values/5

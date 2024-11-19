@@ -48,21 +48,74 @@ namespace Expense.API.Repositories.Expense
 
         public async Task<ExpenseUser> CreateExpenseUserAsync(ExpenseUser expenseUser)
         {
-            //check if the User Exists -- Just In Case
+            // Check if the User Exists -- Just In Case
             var user = await userDocumentsDbContext.Users.FirstOrDefaultAsync(
                 user => user.Id.Equals(expenseUser.UserId));
-            //check if the Expense Exists -- Just in case
+            // Check if the Expense Exists -- Just In Case
             var expense = await userDocumentsDbContext.Expenses.FirstOrDefaultAsync(
                 expense => expense.Id.Equals(expenseUser.ExpenseId));
 
-            if(user != null && expense != null)
+            if (user != null && expense != null)
             {
+                var expenseUserExists = await userDocumentsDbContext.ExpenseUsers.FirstOrDefaultAsync(
+                                            expenseUser => expenseUser.ExpenseId == expense.Id
+                                            && expenseUser.UserId == user.Id);
+                if(expenseUserExists != null)
+                {
+                    throw new Exception("User has already been assigned to the Expense.");
+                }
+
                 await userDocumentsDbContext.ExpenseUsers.AddAsync(expenseUser);
                 await userDocumentsDbContext.SaveChangesAsync();
             }
 
+            // Update user share - based on the number of users the expense is shared with. Expense is shared equally.
+            var expenseUsers = await userDocumentsDbContext.ExpenseUsers
+                .Where(expUser => expUser.ExpenseId == expenseUser.ExpenseId)
+                .ToListAsync();
+
+            var eachPercentage = Math.Round(1.00 / expenseUsers.Count, 2);
+
+            // Update each user with the calculated share percentage
+            foreach (var expUser in expenseUsers)
+            {
+                expUser.UserShare = eachPercentage;
+            }
+            await userDocumentsDbContext.SaveChangesAsync();
+
             return expenseUser;
         }
+
+        public async Task<List<ExpenseUser>> GetAssignUsers(Guid expenseId)
+        {
+            try
+            {
+                var expenseUsers = await userDocumentsDbContext.ExpenseUsers
+                    .Where(expUser => expUser.ExpenseId == expenseId)
+                    .Join(
+                        userDocumentsDbContext.Users,
+                        expUser => expUser.UserId,
+                        user => user.Id,
+                        (expUser, user) => new ExpenseUser(
+                            expUser.ExpenseId,
+                            user.Id,
+                            expUser.UserAmount
+                        )
+                        {
+                            UserShare = expUser.UserShare,
+                            User = user
+                        })
+                    .ToListAsync();
+
+                return expenseUsers;
+            }
+            catch (Exception e)
+            {
+                throw new Exception($"Error fetching assigned users: {e.Message}", e);
+            }
+        }
+
+
 
         public async Task<List<UploadedDocumentDto>> GetDocByExpenseId(Guid expenseId)
         {

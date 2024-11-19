@@ -144,6 +144,28 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             }
         }
 
+        private async Task UpdateExpenseUsers(Guid expenseId)
+        {
+            var expense = await userDocumentsDbContext.Expenses
+                .Where(expense => expense.Id == expenseId)
+                .FirstOrDefaultAsync();
+ 
+
+            if(expense != null)
+            {
+                var expenseUsers = await userDocumentsDbContext.ExpenseUsers
+                                .Where(expenseUser => expenseUser.ExpenseId == expenseId)
+                                .ToListAsync();
+                var expenseAmount = float.Parse(expense.Amount.ToString());
+                foreach (var expenseUser in expenseUsers)
+                {
+                    expenseUser.UserAmount = Math.Round(expenseUser.UserShare * expenseAmount, 2);
+                }
+                await userDocumentsDbContext.SaveChangesAsync();
+            }
+
+        }
+
         public async Task StoreResults(GetExpenseAnalysisResponse getExpenseAnalysisResponse, DocumentJobResult documentJobResult, byte status)
         {
             documentJobResult.Total = 0;
@@ -161,6 +183,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             {
                 await UpdateTotal(documentJobResult.ExpenseId, summaryFieldsList);
             }
+            await UpdateExpenseUsers(documentJobResult.ExpenseId);
             //await userDocumentsDbContext.DocumentJobResults.Up(result);
             await userDocumentsDbContext.SaveChangesAsync();
 
