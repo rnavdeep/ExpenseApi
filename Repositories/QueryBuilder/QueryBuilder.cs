@@ -41,9 +41,26 @@ namespace Expense.API.Repositories.QueryBuilder
                     //If the property of type Guid for PK or Fk
                     if (property.Type == typeof(System.Guid))
                     {
-                        if (Guid.TryParse((string?)filter.Value, out Guid parsedValue))
+                        if (filter.Value is string strValue)
                         {
-                            value = Expression.Constant(parsedValue);
+                            // Single Guid value
+                            if (Guid.TryParse(strValue, out Guid parsedValue))
+                            {
+                                value = Expression.Constant(parsedValue);
+                            }
+                        }
+                        else if (filter.Value is IEnumerable<ExpenseUser> valueList) // If it's a collection of values
+                        {
+                            var guidList = valueList
+                                .Select(item => Guid.TryParse(item?.ExpenseId.ToString(), out var parsed) ? parsed : (Guid?)null)
+                                .Where(g => g.HasValue)
+                                .Select(g => g!.Value)
+                                .ToList();
+
+                            if (guidList.Any())
+                            {
+                                value = Expression.Constant(guidList);
+                            }
                         }
                     }
                     // Create the expression based on filter type

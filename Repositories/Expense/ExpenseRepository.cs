@@ -168,7 +168,7 @@ namespace Expense.API.Repositories.Expense
             throw new Exception($"Expense not found {expenseId} for user {userName}");
         }
 
-        public async Task<List<ExpenseModel>> GetExpensesAsync(Pagination pagination,FilterBy? filterBy, SortFilter? sortFilter)
+        public async Task<List<ExpenseModel>> GetExpensesSharedAsync(Pagination pagination,FilterBy? filterBy, SortFilter? sortFilter)
         {
             // Retrieve the current logged-in user's email from the HttpContext
             var userName = httpContextAccessor.HttpContext?.User?.Claims
@@ -192,15 +192,17 @@ namespace Expense.API.Repositories.Expense
                 filters.Add(filterBy);
             }
             var query =  queryBuilder.BuildQuery(pagination, filters, sortFilter);
+            var temp = await query.ToListAsync();
             //query = query.Where(q => q.CreatedById.Equals(user.Id));
-            var result = await query.ToListAsync();
-
+            var result = await query
+                .Where(result => result.CreatedById != user.Id)
+                .ToListAsync();
             // Return the list of expenses
             return result;
 
         }
 
-        public async Task<List<ExpenseModel>> GetExpensesSharedAsync(Pagination pagination, FilterBy? filterBy, SortFilter? sortFilter)
+        public async Task<List<ExpenseModel>> GetExpensesAsync(Pagination pagination, FilterBy? filterBy, SortFilter? sortFilter)
         {
             // Retrieve the current logged-in user's email from the HttpContext
             var userName = httpContextAccessor.HttpContext?.User?.Claims

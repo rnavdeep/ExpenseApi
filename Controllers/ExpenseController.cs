@@ -62,7 +62,7 @@ namespace Expense.API.Controllers
         }
 
         // GET: api/values
-        [HttpGet("/sharedExpenses")]
+        [HttpGet("sharedExpenses")]
         public async Task<IActionResult> GetSharedExpenses([FromQuery] Pagination pagination, [FromQuery] FilterBy? filterBy, [FromQuery] SortFilter? sortFilter)
         {
             try
@@ -75,8 +75,8 @@ namespace Expense.API.Controllers
                 {
                     sortFilter = null;
                 }
-                var expenses = await expenseRepository.GetExpensesAsync(pagination, filterBy, sortFilter);
-                var count = await expenseRepository.GetExpensesCountAsync();
+                var expenses = await expenseRepository.GetExpensesSharedAsync(pagination, filterBy, sortFilter);
+                var count = expenses.Count();
                 var expensesDto = mapper.Map<List<ExpenseDto>>(expenses);
                 if (expensesDto == null || !expensesDto.Any())
                 {
