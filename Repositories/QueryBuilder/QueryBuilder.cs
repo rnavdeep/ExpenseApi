@@ -33,7 +33,7 @@ namespace Expense.API.Repositories.QueryBuilder
                     if (property.Type == typeof(decimal))
                     {
                         filter.Type = "==";
-                        if (decimal.TryParse(filter.Value, out decimal parsedValue))
+                        if (decimal.TryParse((string?)filter.Value, out decimal parsedValue))
                         {
                             value = Expression.Constant(parsedValue);
                         }
@@ -41,7 +41,7 @@ namespace Expense.API.Repositories.QueryBuilder
                     //If the property of type Guid for PK or Fk
                     if (property.Type == typeof(System.Guid))
                     {
-                        if (Guid.TryParse(filter.Value, out Guid parsedValue))
+                        if (Guid.TryParse((string?)filter.Value, out Guid parsedValue))
                         {
                             value = Expression.Constant(parsedValue);
                         }
@@ -66,6 +66,21 @@ namespace Expense.API.Repositories.QueryBuilder
                         case "like":
                             var startsWith = typeof(string).GetMethod("StartsWith", new[] { typeof(string) });
                             comparisonExpression = Expression.Call(property, startsWith, value);
+                            break;
+                        case "in":
+                            if (value.Type.IsArray || typeof(System.Collections.IEnumerable).IsAssignableFrom(value.Type))
+                            {
+                                var containsMethod = typeof(Enumerable)
+                                    .GetMethods()
+                                    .First(m => m.Name == "Contains" && m.GetParameters().Length == 2)
+                                    .MakeGenericMethod(property.Type);
+
+                                comparisonExpression = Expression.Call(containsMethod, value, property);
+                            }
+                            else
+                            {
+                                throw new ArgumentException("Value must be a collection for 'In' filter.");
+                            }
                             break;
                         default:
                             throw new NotSupportedException($"Filter type '{filter.Type}' is not supported.");
