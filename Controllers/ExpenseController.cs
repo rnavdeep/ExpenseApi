@@ -60,6 +60,41 @@ namespace Expense.API.Controllers
                 return BadRequest($"An error occurred: {e.Message}");
             }
         }
+
+        // GET: api/values
+        [HttpGet("sharedExpenses")]
+        public async Task<IActionResult> GetSharedExpenses([FromQuery] Pagination pagination, [FromQuery] FilterBy? filterBy, [FromQuery] SortFilter? sortFilter)
+        {
+            try
+            {
+                if (filterBy?.PropertyName == null || filterBy?.Value == null)
+                {
+                    filterBy = null;
+                }
+                if (sortFilter?.PropertyNameSort == null)
+                {
+                    sortFilter = null;
+                }
+                var expenses = await expenseRepository.GetExpensesSharedAsync(pagination, filterBy, sortFilter);
+                var count = expenses.Count();
+                var expensesDto = mapper.Map<List<ExpenseDto>>(expenses);
+                if (expensesDto == null || !expensesDto.Any())
+                {
+                    return NotFound($"No expenses found for the logged in user");
+                }
+                var result = new
+                {
+                    Expenses = expensesDto,
+                    TotalRows = count
+                };
+
+                return Ok(result);
+            }
+            catch (Exception e)
+            {
+                return BadRequest($"An error occurred: {e.Message}");
+            }
+        }
         // GET: api/values
         [HttpGet("count")]
         public async Task<IActionResult> GetCount()

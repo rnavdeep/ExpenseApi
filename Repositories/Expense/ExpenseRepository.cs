@@ -168,7 +168,7 @@ namespace Expense.API.Repositories.Expense
             throw new Exception($"Expense not found {expenseId} for user {userName}");
         }
 
-        public async Task<List<ExpenseModel>> GetExpensesAsync(Pagination pagination,FilterBy? filterBy, SortFilter? sortFilter)
+        public async Task<List<ExpenseModel>> GetExpensesSharedAsync(Pagination pagination,FilterBy? filterBy, SortFilter? sortFilter)
         {
             // Retrieve the current logged-in user's email from the HttpContext
             var userName = httpContextAccessor.HttpContext?.User?.Claims
@@ -183,6 +183,40 @@ namespace Expense.API.Repositories.Expense
                 // Handle case where the user does not exist -- can not return expenses
                 throw new Exception("Invalid User"); 
             }
+            var sharedExpenses =await userDocumentsDbContext.ExpenseUsers.Where(eu => eu.UserId.Equals(user.Id)).ToListAsync();
+            var queryBuilder = new QueryBuilder<ExpenseModel>(userDocumentsDbContext);
+            List<FilterBy> filters = new List<FilterBy>();
+            filters.Add(new FilterBy { PropertyName = "Id", Type = "in", Value = sharedExpenses });
+            if (filterBy != null)
+            {
+                filters.Add(filterBy);
+            }
+            var query =  queryBuilder.BuildQuery(pagination, filters, sortFilter);
+            var temp = await query.ToListAsync();
+            //query = query.Where(q => q.CreatedById.Equals(user.Id));
+            var result = await query
+                .Where(result => result.CreatedById != user.Id)
+                .ToListAsync();
+            // Return the list of expenses
+            return result;
+
+        }
+
+        public async Task<List<ExpenseModel>> GetExpensesAsync(Pagination pagination, FilterBy? filterBy, SortFilter? sortFilter)
+        {
+            // Retrieve the current logged-in user's email from the HttpContext
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+                             .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+
+            // Check if the user exists in the database
+            var user = await userDocumentsDbContext.Users
+                            .FirstOrDefaultAsync(u => u.Username.Equals(userName));
+
+            if (user == null)
+            {
+                // Handle case where the user does not exist -- can not return expenses
+                throw new Exception("Invalid User");
+            }
             var queryBuilder = new QueryBuilder<ExpenseModel>(userDocumentsDbContext);
             List<FilterBy> filters = new List<FilterBy>();
             filters.Add(new FilterBy { PropertyName = "CreatedById", Type = "==", Value = user.Id.ToString() });
@@ -190,15 +224,13 @@ namespace Expense.API.Repositories.Expense
             {
                 filters.Add(filterBy);
             }
-            var query =  queryBuilder.BuildQuery(pagination, filters, sortFilter);
+            var query = queryBuilder.BuildQuery(pagination, filters, sortFilter);
             //query = query.Where(q => q.CreatedById.Equals(user.Id));
             var result = await query.ToListAsync();
 
             // Return the list of expenses
             return result;
-
         }
-
         public async Task<int> GetExpensesCountAsync()
         {
             // Retrieve the current logged-in user's email from the HttpContext -- email is always unique

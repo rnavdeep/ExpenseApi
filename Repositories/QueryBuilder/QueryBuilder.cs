@@ -33,7 +33,7 @@ namespace Expense.API.Repositories.QueryBuilder
                     if (property.Type == typeof(decimal))
                     {
                         filter.Type = "==";
-                        if (decimal.TryParse(filter.Value, out decimal parsedValue))
+                        if (decimal.TryParse((string?)filter.Value, out decimal parsedValue))
                         {
                             value = Expression.Constant(parsedValue);
                         }
@@ -41,9 +41,26 @@ namespace Expense.API.Repositories.QueryBuilder
                     //If the property of type Guid for PK or Fk
                     if (property.Type == typeof(System.Guid))
                     {
-                        if (Guid.TryParse(filter.Value, out Guid parsedValue))
+                        if (filter.Value is string strValue)
                         {
-                            value = Expression.Constant(parsedValue);
+                            // Single Guid value
+                            if (Guid.TryParse(strValue, out Guid parsedValue))
+                            {
+                                value = Expression.Constant(parsedValue);
+                            }
+                        }
+                        else if (filter.Value is IEnumerable<ExpenseUser> valueList) // If it's a collection of values
+                        {
+                            var guidList = valueList
+                                .Select(item => Guid.TryParse(item?.ExpenseId.ToString(), out var parsed) ? parsed : (Guid?)null)
+                                .Where(g => g.HasValue)
+                                .Select(g => g!.Value)
+                                .ToList();
+
+                            if (guidList.Any())
+                            {
+                                value = Expression.Constant(guidList);
+                            }
                         }
                     }
                     // Create the expression based on filter type
@@ -66,6 +83,21 @@ namespace Expense.API.Repositories.QueryBuilder
                         case "like":
                             var startsWith = typeof(string).GetMethod("StartsWith", new[] { typeof(string) });
                             comparisonExpression = Expression.Call(property, startsWith, value);
+                            break;
+                        case "in":
+                            if (value.Type.IsArray || typeof(System.Collections.IEnumerable).IsAssignableFrom(value.Type))
+                            {
+                                var containsMethod = typeof(Enumerable)
+                                    .GetMethods()
+                                    .First(m => m.Name == "Contains" && m.GetParameters().Length == 2)
+                                    .MakeGenericMethod(property.Type);
+
+                                comparisonExpression = Expression.Call(containsMethod, value, property);
+                            }
+                            else
+                            {
+                                throw new ArgumentException("Value must be a collection for 'In' filter.");
+                            }
                             break;
                         default:
                             throw new NotSupportedException($"Filter type '{filter.Type}' is not supported.");
