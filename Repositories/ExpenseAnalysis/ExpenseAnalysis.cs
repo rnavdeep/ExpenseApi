@@ -119,7 +119,21 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             string jsonResult = JsonConvert.SerializeObject(summaryFieldsJson, Formatting.Indented);
             return jsonResult;
         }
+        private decimal GetTotal(Dictionary<string, string> summaryFields)
+        {
+            decimal amount = 0;
+            if (summaryFields.ContainsKey("TOTAL"))
+            {
+                string fieldValue = summaryFields["TOTAL"];
 
+                // Try to parse the numeric value from the string as a decimal
+                if (decimal.TryParse(Regex.Replace(fieldValue, @"[^\d.-]", ""), out decimal amountAdded))
+                {
+                    amount = amountAdded;
+                }
+            }
+            return amount;
+        }
         private async Task UpdateTotal(Guid expenseId, Dictionary<string, string> summaryFields)
         {
             var expense = await userDocumentsDbContext.Expenses
@@ -128,19 +142,10 @@ namespace Expense.API.Repositories.ExpenseAnalysis
 
             if (expense != null)
             {
-                if (summaryFields.ContainsKey("TOTAL"))
-                {
-                    string fieldValue = summaryFields["TOTAL"];
+                expense.Amount += GetTotal(summaryFields);
 
-                    // Try to parse the numeric value from the string as a decimal
-                    if (decimal.TryParse(Regex.Replace(fieldValue, @"[^\d.-]", ""), out decimal amountAdded))
-                    {
-                        expense.Amount += amountAdded;
-
-                        // Update the total and save changes
-                        await userDocumentsDbContext.SaveChangesAsync();
-                    }
-                }
+                // Update the total and save changes
+                await userDocumentsDbContext.SaveChangesAsync();
             }
         }
 
@@ -168,7 +173,6 @@ namespace Expense.API.Repositories.ExpenseAnalysis
 
         public async Task StoreResults(GetExpenseAnalysisResponse getExpenseAnalysisResponse, DocumentJobResult documentJobResult, byte status)
         {
-            documentJobResult.Total = 0;
             documentJobResult.ResultCreatedAt = DateTime.UtcNow;
             if (getExpenseAnalysisResponse.ExpenseDocuments[0].LineItemGroups[0].LineItems.Count > 0)
             {
@@ -181,6 +185,8 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             var summaryFieldsList = JsonConvert.DeserializeObject<Dictionary<string, string>>(documentJobResult.SummaryFields);
             if(summaryFieldsList != null)
             {
+                documentJobResult.Total = GetTotal(summaryFieldsList);
+
                 await UpdateTotal(documentJobResult.ExpenseId, summaryFieldsList);
             }
             await UpdateExpenseUsers(documentJobResult.ExpenseId);
