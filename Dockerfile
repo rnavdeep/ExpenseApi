@@ -4,6 +4,9 @@ WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
+# Install curl for health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 # Use the SDK image for building the project
 FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
 WORKDIR /src
@@ -31,6 +34,16 @@ COPY --from=build /app/publish .
 # Set environment variable for the database password
 ARG AUTH_DB_SA_PASSWORD
 ENV SA_PASSWORD=${AUTH_DB_SA_PASSWORD}
+
+# Set ASP.NET Core to listen on port 80
+ENV ASPNETCORE_URLS=http://+:80
+
+# Create a simple health check endpoint by creating a startup script
+RUN echo '#!/bin/sh\n\
+while true; do\n\
+  curl -f http://localhost:80/ || exit 1\n\
+  sleep 30\n\
+done' > /healthcheck.sh && chmod +x /healthcheck.sh
 
 # Entry point to start the application
 ENTRYPOINT ["dotnet", "Expense.API.dll"]

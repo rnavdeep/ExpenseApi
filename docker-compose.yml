@@ -54,18 +54,39 @@ services:
     build:
       context: ./
       dockerfile: Dockerfile
+    container_name: backend-server
     ports:
       - "5223:80" # API is exposed on port 5223
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:80
+      # Database Connection Strings
+      ConnectionStrings__ExpenseConnectionString: "Server=sql_server_demo,1433;Database=ExpenseAnalyserDb;User=sa;Password=${SQL_SERVER_DEMO_SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;"
+      ConnectionStrings__ExpenseAuthConnectionString: "Server=authenticationDB,1433;Database=AuthenticationDb;User=sa;Password=${AUTH_DB_SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true;"
+      # Redis Connection String
+      ConnectionStrings__Redis: "redis:6379"
+      # AWS Configuration
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_REGION: ${AWS_REGION}
       S3_BUCKET_NAME: ${AWS_BUCKET}
+      # JWT Configuration (default values, should be overridden in production)
+      JWT_KEY: "your-super-secret-jwt-key-that-is-at-least-32-characters-long"
+      JWT_ISSUER: "ExpenseApi"
+      JWT_AUDIENCE: "ExpenseApiUsers"
     depends_on:
-      - sql_server_demo
-      - redis
-      - authenticationDB
+      sql_server_demo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      authenticationDB:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/swagger/index.html"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     networks:
       - expense-network
 
