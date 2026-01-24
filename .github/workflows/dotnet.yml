@@ -28,11 +28,11 @@ jobs:
 
       # Restore project dependencies
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore ExpenseApi.sln
 
       # Build the project
       - name: Build project
-        run: dotnet build --no-restore
+        run: dotnet build ExpenseApi.sln --no-restore
 
       # Uncomment to run tests
       # - name: Run tests
