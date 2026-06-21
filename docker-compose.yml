@@ -71,9 +71,9 @@ services:
       AWS_REGION: ${AWS_REGION}
       S3_BUCKET_NAME: ${AWS_BUCKET}
       # JWT Configuration (default values, should be overridden in production)
-      JWT_KEY: "your-super-secret-jwt-key-that-is-at-least-32-characters-long"
-      JWT_ISSUER: "ExpenseApi"
-      JWT_AUDIENCE: "ExpenseApiUsers"
+      Jwt__Key: "your-super-secret-jwt-key-that-is-at-least-32-characters-long"
+      Jwt__Issuer: "ExpenseApi"
+      Jwt__Audience: "ExpenseApiUsers"
     depends_on:
       sql_server_demo:
         condition: service_healthy
