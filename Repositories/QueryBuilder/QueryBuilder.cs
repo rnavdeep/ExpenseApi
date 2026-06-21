@@ -81,8 +81,10 @@ namespace Expense.API.Repositories.QueryBuilder
                             comparisonExpression = Expression.LessThanOrEqual(property, value);
                             break;
                         case "like":
-                            var startsWith = typeof(string).GetMethod("StartsWith", new[] { typeof(string) });
-                            comparisonExpression = Expression.Call(property, startsWith, value);
+                            // Substring match (translates to SQL LIKE '%value%'); StartsWith
+                            // only matched a prefix, so mid-string searches returned nothing.
+                            var contains = typeof(string).GetMethod("Contains", new[] { typeof(string) });
+                            comparisonExpression = Expression.Call(property, contains, value);
                             break;
                         case "in":
                             if (value.Type.IsArray || typeof(System.Collections.IEnumerable).IsAssignableFrom(value.Type))
