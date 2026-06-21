@@ -1,2 +1,2 @@
-CREATE DATABASE ExpenseAnalyser;
+CREATE DATABASE ExpenseAnalyserDb;
 GO

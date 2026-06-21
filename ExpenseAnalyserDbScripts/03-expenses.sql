@@ -1,4 +1,4 @@
-USE ExpenseAnalyser
+USE ExpenseAnalyserDb
 GO
 
 SET ANSI_NULLS ON

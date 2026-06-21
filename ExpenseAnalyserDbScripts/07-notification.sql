@@ -1,4 +1,4 @@
-USE ExpenseAnalyser
+USE ExpenseAnalyserDb
 GO
 SET ANSI_NULLS ON
 GO
@@ -12,7 +12,8 @@ CREATE TABLE [dbo].[Notification](
 	[UserId] [uniqueidentifier] NOT NULL,
 	[Message] [nvarchar](max) NOT NULL,
 	[Title] [nvarchar](max) NULL,
- CONSTRAINT [PK_Notification] PRIMARY KEY CLUSTERED 
+	[IsFriendRequest] [tinyint] NULL CONSTRAINT [DF_Notification_IsFriendRequest] DEFAULT ((0)),
+ CONSTRAINT [PK_Notification] PRIMARY KEY CLUSTERED
 (
 	[Id] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]

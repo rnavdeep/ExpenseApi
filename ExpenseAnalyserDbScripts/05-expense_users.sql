@@ -1,4 +1,4 @@
-USE ExpenseAnalyser
+USE ExpenseAnalyserDb
 GO
 SET ANSI_NULLS ON
 GO
@@ -7,7 +7,9 @@ GO
 CREATE TABLE [dbo].[ExpenseUsers](
 	[ExpenseId] [uniqueidentifier] NOT NULL,
 	[UserId] [uniqueidentifier] NOT NULL,
- CONSTRAINT [PK_ExpenseUsers] PRIMARY KEY CLUSTERED 
+	[UserShare] [float] NOT NULL CONSTRAINT [DF_ExpenseUsers_UserShare] DEFAULT ((0)),
+	[UserAmount] [float] NULL,
+ CONSTRAINT [PK_ExpenseUsers] PRIMARY KEY CLUSTERED
 (
 	[ExpenseId] ASC,
 	[UserId] ASC
