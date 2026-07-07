@@ -34,6 +34,4 @@ jobs:
       - name: Build project
         run: dotnet build ExpenseApi.sln --no-restore
 
-      # Run the integration tests (Testcontainers uses the Docker daemon available on the runner).
-      - name: Run tests
-        run: dotnet test ExpenseApi.sln --no-build --verbosity normal
+      # Integration tests run in a dedicated workflow (.github/workflows/integration-tests.yml).

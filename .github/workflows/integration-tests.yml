@@ -1,0 +1,47 @@
+# Runs the xUnit integration suite (Tests/Expense.API.IntegrationTests).
+# The tests spin up SQL Server + Redis via Testcontainers, which uses the Docker
+# daemon that is available by default on GitHub's ubuntu-latest runners.
+name: Integration Tests
+
+on:
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches:
+      - '*'
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 7.0.x
+
+      - name: Restore
+        run: dotnet restore Tests/Expense.API.IntegrationTests/Expense.API.IntegrationTests.csproj
+
+      - name: Build
+        run: dotnet build Tests/Expense.API.IntegrationTests/Expense.API.IntegrationTests.csproj --no-restore --configuration Release
+
+      - name: Run integration tests
+        run: >
+          dotnet test Tests/Expense.API.IntegrationTests/Expense.API.IntegrationTests.csproj
+          --no-build --configuration Release --verbosity normal
+          --logger "trx;LogFileName=integration-tests.trx"
+          --results-directory ./TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: ./TestResults/*.trx
+          if-no-files-found: ignore
