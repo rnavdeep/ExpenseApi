@@ -101,3 +101,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
+
+// Exposed so the integration test project (WebApplicationFactory) can reference the entry point.
+public partial class Program { }

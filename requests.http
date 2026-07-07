@@ -1,0 +1,114 @@
+### ExpenseApi endpoint smoke tests (VS Code REST Client / JetBrains .http)
+#
+# Auth is a `jwtToken` cookie set by Login; REST clients persist and resend cookies
+# per host automatically, so run Register -> Login once, then the rest just work.
+#
+# @baseUrl points at the docker-compose backend (http, no HTTPS redirect). For a local
+# `dotnet run`, HTTPS redirect is on — use https://localhost:7085 instead.
+#
+# For meaningful dashboard numbers: run the schema scripts, then Register alice below,
+# then run ExpenseAnalyserDbScripts/seed-data.sql, then hit the Dashboard section.
+@baseUrl = http://localhost:5223
+@user = alice
+@password = Passw0rd!
+
+### ---------------------------------------------------------------- Auth
+# @name register
+POST {{baseUrl}}/api/Auth/Register
+Content-Type: application/json
+
+{
+  "email": "{{user}}@test.local",
+  "userName": "{{user}}",
+  "password": "{{password}}",
+  "roles": ["Writer"]
+}
+
+### Login (sets the jwtToken cookie used by every request below)
+# @name login
+POST {{baseUrl}}/api/Auth/Login
+Content-Type: application/json
+
+{
+  "username": "{{user}}",
+  "password": "{{password}}"
+}
+
+### Session check (should report isLoggedIn: true after login)
+GET {{baseUrl}}/api/Auth/checkSession
+
+### ---------------------------------------------------------- Dashboard
+# Expected values below assume seed-data.sql was applied for user alice.
+
+### Summary — TotalSpent 495.50, ReceiptsScanned 2, YouOwe 45, OwedToYou 150
+GET {{baseUrl}}/api/Expense/summary?period=month
+
+### Monthly — current 495.50, -1 80, -2 150, -3 60, else 0
+GET {{baseUrl}}/api/Expense/monthly?months=6
+
+### Balances — OwedToYou [bob 100, carol 50]; YouOwe [bob 45]
+GET {{baseUrl}}/api/Expense/balances
+
+### ------------------------------------------------------- Expense CRUD
+### Create an expense (title + description are query params; amount defaults to 0)
+# @name createExpense
+POST {{baseUrl}}/api/Expense?title=Coffee&description=Morning coffee
+
+### List my expenses (paged)
+GET {{baseUrl}}/api/Expense?pageNumber=1&pageSize=50
+
+### Count (note: returns a global count, not per-user)
+GET {{baseUrl}}/api/Expense/count
+
+### Get one by id
+GET {{baseUrl}}/api/Expense/{{createExpense.response.body.id}}
+
+### Assigned users (creator is auto-assigned on create)
+GET {{baseUrl}}/api/Expense/{{createExpense.response.body.id}}/getAssignedUsers
+
+### Update
+PUT {{baseUrl}}/api/Expense/{{createExpense.response.body.id}}
+Content-Type: application/json
+
+{
+  "id": "{{createExpense.response.body.id}}",
+  "title": "Coffee (updated)",
+  "description": "Updated description",
+  "category": "Dining"
+}
+
+### Shared-with-me expenses
+GET {{baseUrl}}/api/Expense/sharedExpenses?pageNumber=1&pageSize=50
+
+### Dropdown
+GET {{baseUrl}}/api/Expense/dropdown
+
+### Delete
+DELETE {{baseUrl}}/api/Expense/{{createExpense.response.body.id}}
+
+### ----------------------------------------------------------- Friends
+### Search a user by email or username (NOTE: no [Authorize] on this controller)
+GET {{baseUrl}}/api/Friends/{{user}}@test.local
+
+### Friends list
+GET {{baseUrl}}/api/Friends/getFriends
+
+### Dropdown users
+GET {{baseUrl}}/api/Friends/getDropdownUsers
+
+### ------------------------------------------------------ Notifications
+### List my notifications
+GET {{baseUrl}}/api/Notification
+
+### Mark all read
+POST {{baseUrl}}/api/Notification/readAll
+
+### ------------------------------------------------------------ AWS (S3)
+### List buckets — NOTE the route is /api/S/list-buckets, not /api/S3/...
+GET {{baseUrl}}/api/S/list-buckets
+
+### Downloadable links for the current user
+GET {{baseUrl}}/api/Document/downloadLinks
+
+### --------------------------------------------------------------- Logout
+POST {{baseUrl}}/api/Auth/Logout

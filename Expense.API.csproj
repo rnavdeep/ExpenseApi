@@ -86,4 +86,10 @@
     <Compile Remove="Models\Domain\Document\DocumentResult.cs" />
     <Compile Remove="Middlewares\RequestHandlerMiddleware.cs" />
   </ItemGroup>
+  <!-- The integration test project lives under Tests/ and must not be compiled into the web app. -->
+  <ItemGroup>
+    <Compile Remove="Tests\**\*.cs" />
+    <Content Remove="Tests\**" />
+    <None Remove="Tests\**" />
+  </ItemGroup>
 </Project>
