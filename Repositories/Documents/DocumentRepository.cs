@@ -670,7 +670,12 @@ namespace Expense.API.Repositories.Documents
                         BucketName = bucketName,
                         Key = key
                     };
-
+                    var expense = await userDocumentsDbContext.Expenses.Where(exp => exp.Id.Equals(docLocalDb.ExpenseId)).FirstOrDefaultAsync();
+                    var docResult = await userDocumentsDbContext.DocumentJobResults.Where(res => res.DocumentId.Equals(docLocalDb.Id)).FirstOrDefaultAsync();
+                    if (expense != null && docResult !=null)
+                    {
+                        expense.Amount -= docResult.Total;
+                    }
                     var resp = await s3Client.DeleteObjectAsync(deleteRequest);
                     userDocumentsDbContext.Documents.Remove(docLocalDb);
                     await userDocumentsDbContext.SaveChangesAsync();
