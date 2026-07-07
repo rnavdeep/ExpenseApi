@@ -16,6 +16,11 @@
         public Guid CreatedById { get; set; }  // Foreign key for User
         public User CreatedBy { get; set; }     // Navigation property
 
+        /// <summary>
+        /// Spending category for dashboard breakdowns (e.g. Groceries, Dining). Null = uncategorised.
+        /// </summary>
+        public string? Category { get; set; }
+
         //Navgational Properties
 
         /// <summary>

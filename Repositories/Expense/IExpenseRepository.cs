@@ -88,6 +88,22 @@ namespace Expense.API.Repositories.Expense
         /// <returns></returns>
         public Task<List<ExpenseUser>> GetAssignUsers(Guid expenseId);
 
+        /// <summary>
+        /// Dashboard KPI strip + category breakdown for the current user, scoped to a period
+        /// ("month" | "quarter" | "year").
+        /// </summary>
+        public Task<DashboardSummaryDto> GetDashboardSummaryAsync(string period);
+
+        /// <summary>
+        /// Dashboard bar chart: SUM(Amount) per month for the current user over the last N months
+        /// (gap months filled with 0).
+        /// </summary>
+        public Task<List<MonthlySpendingDto>> GetMonthlySpendingAsync(int months);
+
+        /// <summary>
+        /// Dashboard outstanding balances: gross amounts owed per counterparty, split by direction.
+        /// </summary>
+        public Task<OutstandingBalancesDto> GetOutstandingBalancesAsync();
 
     }
 }

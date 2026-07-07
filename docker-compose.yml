@@ -91,9 +91,13 @@ services:
       - expense-network
 
   frontend:
-    image: expense-analyser:latest # Pre-build frontend image 
+    image: expense-analyser:latest # Pre-build frontend image
     ports:
       - "8080:80" # Frontend exposed on port 8080
+    environment:
+      # nginx.conf proxies /api to this; without it nginx fails at boot
+      # with: [emerg] unknown "backend_api_url" variable
+      - BACKEND_API_URL=http://backend-server:80
     depends_on:
       - backend-server # Wait for API to be up
     networks:

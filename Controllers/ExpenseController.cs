@@ -294,6 +294,48 @@ namespace Expense.API.Controllers
             }
         }
 
+        // GET: api/Expense/summary?period=month
+        [HttpGet("summary")]
+        public async Task<IActionResult> GetSummary([FromQuery] string period = "month")
+        {
+            try
+            {
+                return Ok(await expenseRepository.GetDashboardSummaryAsync(period));
+            }
+            catch (Exception e)
+            {
+                return BadRequest($"An error occurred: {e.Message}");
+            }
+        }
+
+        // GET: api/Expense/monthly?months=6
+        [HttpGet("monthly")]
+        public async Task<IActionResult> GetMonthly([FromQuery] int months = 6)
+        {
+            try
+            {
+                return Ok(await expenseRepository.GetMonthlySpendingAsync(months));
+            }
+            catch (Exception e)
+            {
+                return BadRequest($"An error occurred: {e.Message}");
+            }
+        }
+
+        // GET: api/Expense/balances
+        [HttpGet("balances")]
+        public async Task<IActionResult> GetBalances()
+        {
+            try
+            {
+                return Ok(await expenseRepository.GetOutstandingBalancesAsync());
+            }
+            catch (Exception e)
+            {
+                return BadRequest($"An error occurred: {e.Message}");
+            }
+        }
+
         [Authorize]
         [HttpGet("{expenseId}/doc/{docId}")]
         public async Task<IActionResult> GetResults(string expenseId, string docId)

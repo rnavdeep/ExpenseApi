@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.Globalization;
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
@@ -309,10 +310,174 @@ namespace Expense.API.Repositories.Expense
 
                 expense.Title = updateExpenseDto.Title;
                 expense.Description = updateExpenseDto.Description;
+                expense.Category = updateExpenseDto.Category;
                 await userDocumentsDbContext.SaveChangesAsync();
                 return expense;
             }
             throw new Exception("Update Failed, Expense Not found");
+        }
+
+        // ----- Dashboard -----
+
+        /// <summary>
+        /// Resolve the current user from the JWT NameIdentifier claim (same lookup as GetExpensesAsync).
+        /// </summary>
+        private async Task<User> GetCurrentUserAsync()
+        {
+            var userName = httpContextAccessor.HttpContext?.User?.Claims
+                             .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+
+            var user = await userDocumentsDbContext.Users
+                            .FirstOrDefaultAsync(u => u.Username.Equals(userName));
+
+            if (user == null)
+            {
+                throw new Exception("Invalid User");
+            }
+            return user;
+        }
+
+        /// <summary>
+        /// Map a period keyword to a [from, to] window. "quarter" = trailing 3 months,
+        /// "year" = current calendar year, anything else = current calendar month.
+        /// </summary>
+        private static (DateTime from, DateTime to) ResolveWindow(string period, DateTime now)
+        {
+            switch ((period ?? "month").Trim().ToLowerInvariant())
+            {
+                case "year":
+                    return (new DateTime(now.Year, 1, 1), now);
+                case "quarter":
+                    return (now.AddMonths(-3), now);
+                default: // "month"
+                    return (new DateTime(now.Year, now.Month, 1), now);
+            }
+        }
+
+        public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(string period)
+        {
+            var user = await GetCurrentUserAsync();
+            var now = DateTime.UtcNow;
+            var (from, to) = ResolveWindow(period, now);
+            var prevFrom = from - (to - from); // previous comparable window
+
+            var myExpensesInWindow = userDocumentsDbContext.Expenses
+                .Where(e => e.CreatedById == user.Id && e.CreatedAt >= from && e.CreatedAt <= to);
+
+            var totalSpent = await myExpensesInWindow.SumAsync(e => (decimal?)e.Amount) ?? 0m;
+
+            var prevTotal = await userDocumentsDbContext.Expenses
+                .Where(e => e.CreatedById == user.Id && e.CreatedAt >= prevFrom && e.CreatedAt < from)
+                .SumAsync(e => (decimal?)e.Amount) ?? 0m;
+
+            var deltaPct = prevTotal == 0m
+                ? (totalSpent > 0m ? 100.0 : 0.0)
+                : (double)((totalSpent - prevTotal) / prevTotal) * 100.0;
+
+            var receiptsScanned = await userDocumentsDbContext.Documents
+                .CountAsync(d => d.UserId == user.Id && d.UploadedAt >= from && d.UploadedAt <= to);
+
+            var youOwe = await userDocumentsDbContext.ExpenseUsers
+                .Where(eu => eu.UserId == user.Id && eu.Expense.CreatedById != user.Id)
+                .SumAsync(eu => eu.UserAmount) ?? 0.0;
+
+            var owedToYou = await userDocumentsDbContext.ExpenseUsers
+                .Where(eu => eu.Expense.CreatedById == user.Id && eu.UserId != user.Id)
+                .SumAsync(eu => eu.UserAmount) ?? 0.0;
+
+            var categoriesRaw = await myExpensesInWindow
+                .GroupBy(e => e.Category)
+                .Select(g => new { g.Key, Amount = g.Sum(e => e.Amount) })
+                .ToListAsync();
+
+            var categories = categoriesRaw
+                .Select(c => new CategoryBreakdownDto { Category = c.Key ?? "Other", Amount = c.Amount })
+                .OrderByDescending(c => c.Amount)
+                .ToList();
+
+            return new DashboardSummaryDto
+            {
+                TotalSpent = totalSpent,
+                ReceiptsScanned = receiptsScanned,
+                YouOwe = youOwe,
+                OwedToYou = owedToYou,
+                TotalSpentDeltaPct = Math.Round(deltaPct, 1),
+                Categories = categories
+            };
+        }
+
+        public async Task<List<MonthlySpendingDto>> GetMonthlySpendingAsync(int months)
+        {
+            var user = await GetCurrentUserAsync();
+            if (months <= 0) months = 6;
+
+            var now = DateTime.UtcNow;
+            var startMonth = new DateTime(now.Year, now.Month, 1).AddMonths(-(months - 1));
+
+            var grouped = await userDocumentsDbContext.Expenses
+                .Where(e => e.CreatedById == user.Id && e.CreatedAt >= startMonth)
+                .GroupBy(e => new { e.CreatedAt.Year, e.CreatedAt.Month })
+                .Select(g => new { g.Key.Year, g.Key.Month, Amount = g.Sum(e => e.Amount) })
+                .ToListAsync();
+
+            var result = new List<MonthlySpendingDto>();
+            for (int i = 0; i < months; i++)
+            {
+                var m = startMonth.AddMonths(i);
+                var match = grouped.FirstOrDefault(x => x.Year == m.Year && x.Month == m.Month);
+                result.Add(new MonthlySpendingDto
+                {
+                    Year = m.Year,
+                    Month = m.Month,
+                    Label = m.ToString("MMM", CultureInfo.InvariantCulture),
+                    Amount = match?.Amount ?? 0m
+                });
+            }
+            return result;
+        }
+
+        public async Task<OutstandingBalancesDto> GetOutstandingBalancesAsync()
+        {
+            var user = await GetCurrentUserAsync();
+
+            // People I owe: my shares on expenses created by others, grouped by the creator.
+            var youOweRaw = await userDocumentsDbContext.ExpenseUsers
+                .Where(eu => eu.UserId == user.Id && eu.Expense.CreatedById != user.Id)
+                .GroupBy(eu => eu.Expense.CreatedById)
+                .Select(g => new { CounterpartyId = g.Key, Amount = g.Sum(eu => eu.UserAmount) })
+                .ToListAsync();
+
+            // People who owe me: others' shares on expenses I created, grouped by the sharer.
+            var owedToYouRaw = await userDocumentsDbContext.ExpenseUsers
+                .Where(eu => eu.Expense.CreatedById == user.Id && eu.UserId != user.Id)
+                .GroupBy(eu => eu.UserId)
+                .Select(g => new { CounterpartyId = g.Key, Amount = g.Sum(eu => eu.UserAmount) })
+                .ToListAsync();
+
+            var ids = youOweRaw.Select(x => x.CounterpartyId)
+                .Concat(owedToYouRaw.Select(x => x.CounterpartyId))
+                .Distinct()
+                .ToList();
+
+            var names = await userDocumentsDbContext.Users
+                .Where(u => ids.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.Username);
+
+            List<BalanceEntryDto> Project(IEnumerable<dynamic> rows) => rows
+                .Select(r => new BalanceEntryDto
+                {
+                    UserId = r.CounterpartyId,
+                    UserName = names.TryGetValue((Guid)r.CounterpartyId, out string n) ? n : "Unknown",
+                    Amount = (double)(r.Amount ?? 0.0)
+                })
+                .OrderByDescending(b => b.Amount)
+                .ToList();
+
+            return new OutstandingBalancesDto
+            {
+                YouOwe = Project(youOweRaw),
+                OwedToYou = Project(owedToYouRaw)
+            };
         }
     }
 }
