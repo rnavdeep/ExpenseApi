@@ -36,11 +36,12 @@ public class DashboardTests : IntegrationTestBase
             SeedData.AddReceipt(db, alice.Id, travel.Id, now);
             SeedData.AddReceipt(db, alice.Id, travel.Id, now);
 
-            // Bob & Carol owe Alice on her expense: 25 + 15 = 40 (OwedToYou).
+            // Bob & Carol owe Alice on her expense: 25 + 15.
             SeedData.AddShare(db, travel.Id, bob.Id, 25);
             SeedData.AddShare(db, travel.Id, carol.Id, 15);
 
-            // Alice owes Bob 40 on an expense Bob created (YouOwe).
+            // Alice owes Bob 40 on an expense Bob created; netted against the 25 bob owes alice
+            // above, bob nets to alice owing him 15 (YouOwe) - carol's 15 stays in OwedToYou.
             var bobExpense = SeedData.AddExpense(db, bob.Id, "Concert", 80m, "Entertainment", now);
             SeedData.AddShare(db, bobExpense.Id, alice.Id, 40);
 
@@ -51,8 +52,8 @@ public class DashboardTests : IntegrationTestBase
 
         summary!.TotalSpent.Should().Be(380m);
         summary.ReceiptsScanned.Should().Be(2);
-        summary.YouOwe.Should().Be(40.0);
-        summary.OwedToYou.Should().Be(40.0);
+        summary.YouOwe.Should().Be(15.0);
+        summary.OwedToYou.Should().Be(15.0);
         summary.TotalSpentDeltaPct.Should().Be(100.0); // no prior-period spend
         summary.Categories.Should().HaveCount(4);
         summary.Categories[0].Category.Should().Be("Travel"); // highest amount first
@@ -71,9 +72,11 @@ public class DashboardTests : IntegrationTestBase
         await WithDbAsync(async db =>
         {
             var aliceExpense = SeedData.AddExpense(db, alice.Id, "Hotel", 300m, "Travel", now);
-            SeedData.AddShare(db, aliceExpense.Id, bob.Id, 120);
+            SeedData.AddShare(db, aliceExpense.Id, bob.Id, 120); // bob owes alice 120 from this expense
             SeedData.AddShare(db, aliceExpense.Id, carol.Id, 80);
 
+            // Alice owes bob 45 on a bob-created expense; netted against the 120 above, bob's
+            // position becomes a single 75 owed to alice (he no longer appears in YouOwe at all).
             var bobExpense = SeedData.AddExpense(db, bob.Id, "Rental", 90m, "Travel", now);
             SeedData.AddShare(db, bobExpense.Id, alice.Id, 45);
 
@@ -83,13 +86,63 @@ public class DashboardTests : IntegrationTestBase
         var balances = await alice.Client.GetFromJsonAsync<OutstandingBalancesDto>("/api/Expense/balances");
 
         balances!.OwedToYou.Should().HaveCount(2);
-        balances.OwedToYou[0].UserName.Should().Be(bob.Username); // 120 sorted before 80
-        balances.OwedToYou[0].Amount.Should().Be(120.0);
-        balances.OwedToYou.Should().Contain(b => b.UserName == carol.Username && b.Amount == 80.0);
+        balances.OwedToYou[0].UserName.Should().Be(carol.Username); // 80 sorted before bob's net 75
+        balances.OwedToYou[0].Amount.Should().Be(80.0);
+        balances.OwedToYou.Should().Contain(b => b.UserName == bob.Username && b.Amount == 75.0);
+
+        balances.YouOwe.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Balances_net_settlements_partial_exact_and_over_settle()
+    {
+        var alice = await RegisterAndLoginAsync("netalice");
+        var bob = await CreateBusinessUserAsync("netbob");
+        var carol = await CreateBusinessUserAsync("netcarol");
+        var dave = await CreateBusinessUserAsync("netdave");
+        var now = DateTime.UtcNow;
+
+        await WithDbAsync(async db =>
+        {
+            var aliceExpense = SeedData.AddExpense(db, alice.Id, "Trip", 300m, "Travel", now);
+            SeedData.AddShare(db, aliceExpense.Id, bob.Id, 100); // bob owes alice 100
+            SeedData.AddShare(db, aliceExpense.Id, carol.Id, 60); // carol owes alice 60
+            SeedData.AddShare(db, aliceExpense.Id, dave.Id, 90); // dave owes alice 90
+
+            void AddSettlement(Guid payerId, Guid payeeId, decimal amount)
+            {
+                db.Settlements.Add(new Expense.API.Models.Domain.Settlement
+                {
+                    Id = Guid.NewGuid(),
+                    PayerId = payerId,
+                    PayeeId = payeeId,
+                    Amount = amount,
+                    CreatedAt = now
+                });
+            }
+
+            AddSettlement(bob.Id, alice.Id, 40m); // partial: bob still owes 60
+            AddSettlement(carol.Id, alice.Id, 60m); // exact: carol settled, disappears
+            AddSettlement(dave.Id, alice.Id, 150m); // over-settle: alice now owes dave 60
+
+            await db.SaveChangesAsync();
+        });
+
+        var balances = await alice.Client.GetFromJsonAsync<OutstandingBalancesDto>("/api/Expense/balances");
+
+        balances!.OwedToYou.Should().ContainSingle();
+        balances.OwedToYou[0].UserName.Should().Be(bob.Username);
+        balances.OwedToYou[0].Amount.Should().Be(60.0);
+        balances.OwedToYou.Should().NotContain(b => b.UserName == carol.Username);
+        balances.OwedToYou.Should().NotContain(b => b.UserName == dave.Username);
 
         balances.YouOwe.Should().ContainSingle();
-        balances.YouOwe[0].UserName.Should().Be(bob.Username);
-        balances.YouOwe[0].Amount.Should().Be(45.0);
+        balances.YouOwe[0].UserName.Should().Be(dave.Username);
+        balances.YouOwe[0].Amount.Should().Be(60.0);
+
+        var summary = await alice.Client.GetFromJsonAsync<DashboardSummaryDto>("/api/Expense/summary?period=month");
+        summary!.OwedToYou.Should().Be(60.0);
+        summary.YouOwe.Should().Be(60.0);
     }
 
     [Fact]

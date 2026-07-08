@@ -101,9 +101,17 @@ namespace Expense.API.Repositories.Expense
         public Task<List<MonthlySpendingDto>> GetMonthlySpendingAsync(int months);
 
         /// <summary>
-        /// Dashboard outstanding balances: gross amounts owed per counterparty, split by direction.
+        /// Dashboard outstanding balances: amounts owed per counterparty (net of settlements), split
+        /// by direction.
         /// </summary>
         public Task<OutstandingBalancesDto> GetOutstandingBalancesAsync();
+
+        /// <summary>
+        /// Net balance with a single counterparty plus the chronological ledger (expense shares +
+        /// settlements) between the caller and that counterparty. Null when counterpartyId is not an
+        /// existing user.
+        /// </summary>
+        public Task<BalanceDetailDto?> GetBalanceDetailAsync(Guid counterpartyId);
 
     }
 }

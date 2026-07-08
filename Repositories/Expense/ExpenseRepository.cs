@@ -377,13 +377,9 @@ namespace Expense.API.Repositories.Expense
             var receiptsScanned = await userDocumentsDbContext.Documents
                 .CountAsync(d => d.UserId == user.Id && d.UploadedAt >= from && d.UploadedAt <= to);
 
-            var youOwe = await userDocumentsDbContext.ExpenseUsers
-                .Where(eu => eu.UserId == user.Id && eu.Expense.CreatedById != user.Id)
-                .SumAsync(eu => eu.UserAmount) ?? 0.0;
-
-            var owedToYou = await userDocumentsDbContext.ExpenseUsers
-                .Where(eu => eu.Expense.CreatedById == user.Id && eu.UserId != user.Id)
-                .SumAsync(eu => eu.UserAmount) ?? 0.0;
+            var netBalances = await GetNetBalancesByCounterpartyAsync(user.Id);
+            var youOwe = netBalances.Values.Where(v => v < 0).Sum(v => -v);
+            var owedToYou = netBalances.Values.Where(v => v > 0).Sum(v => v);
 
             var categoriesRaw = await myExpensesInWindow
                 .GroupBy(e => e.Category)
@@ -439,44 +435,144 @@ namespace Expense.API.Repositories.Expense
         public async Task<OutstandingBalancesDto> GetOutstandingBalancesAsync()
         {
             var user = await GetCurrentUserAsync();
-
-            // People I owe: my shares on expenses created by others, grouped by the creator.
-            var youOweRaw = await userDocumentsDbContext.ExpenseUsers
-                .Where(eu => eu.UserId == user.Id && eu.Expense.CreatedById != user.Id)
-                .GroupBy(eu => eu.Expense.CreatedById)
-                .Select(g => new { CounterpartyId = g.Key, Amount = g.Sum(eu => eu.UserAmount) })
-                .ToListAsync();
-
-            // People who owe me: others' shares on expenses I created, grouped by the sharer.
-            var owedToYouRaw = await userDocumentsDbContext.ExpenseUsers
-                .Where(eu => eu.Expense.CreatedById == user.Id && eu.UserId != user.Id)
-                .GroupBy(eu => eu.UserId)
-                .Select(g => new { CounterpartyId = g.Key, Amount = g.Sum(eu => eu.UserAmount) })
-                .ToListAsync();
-
-            var ids = youOweRaw.Select(x => x.CounterpartyId)
-                .Concat(owedToYouRaw.Select(x => x.CounterpartyId))
-                .Distinct()
-                .ToList();
+            var netBalances = await GetNetBalancesByCounterpartyAsync(user.Id);
 
             var names = await userDocumentsDbContext.Users
-                .Where(u => ids.Contains(u.Id))
+                .Where(u => netBalances.Keys.Contains(u.Id))
                 .ToDictionaryAsync(u => u.Id, u => u.Username);
 
-            List<BalanceEntryDto> Project(IEnumerable<dynamic> rows) => rows
-                .Select(r => new BalanceEntryDto
-                {
-                    UserId = r.CounterpartyId,
-                    UserName = names.TryGetValue((Guid)r.CounterpartyId, out string n) ? n : "Unknown",
-                    Amount = (double)(r.Amount ?? 0.0)
-                })
+            string NameOf(Guid counterpartyId) => names.TryGetValue(counterpartyId, out var n) ? n : "Unknown";
+
+            var youOwe = netBalances
+                .Where(kv => kv.Value < 0)
+                .Select(kv => new BalanceEntryDto { UserId = kv.Key, UserName = NameOf(kv.Key), Amount = -kv.Value })
+                .OrderByDescending(b => b.Amount)
+                .ToList();
+
+            var owedToYou = netBalances
+                .Where(kv => kv.Value > 0)
+                .Select(kv => new BalanceEntryDto { UserId = kv.Key, UserName = NameOf(kv.Key), Amount = kv.Value })
                 .OrderByDescending(b => b.Amount)
                 .ToList();
 
             return new OutstandingBalancesDto
             {
-                YouOwe = Project(youOweRaw),
-                OwedToYou = Project(owedToYouRaw)
+                YouOwe = youOwe,
+                OwedToYou = owedToYou
+            };
+        }
+
+        /// <summary>
+        /// Net amount owed with every counterparty the user has an expense share or settlement with:
+        /// positive = counterparty owes the user, negative = the user owes the counterparty, 0 = settled.
+        /// Nets expense shares against settlements paid in either direction.
+        /// </summary>
+        private async Task<Dictionary<Guid, double>> GetNetBalancesByCounterpartyAsync(Guid userId)
+        {
+            // My shares on expenses created by others, grouped by the creator (money I owe from expenses).
+            var oweFromExpenses = (await userDocumentsDbContext.ExpenseUsers
+                .Where(eu => eu.UserId == userId && eu.Expense.CreatedById != userId)
+                .GroupBy(eu => eu.Expense.CreatedById)
+                .Select(g => new { CounterpartyId = g.Key, Amount = g.Sum(eu => eu.UserAmount) ?? 0.0 })
+                .ToListAsync())
+                .ToDictionary(x => x.CounterpartyId, x => x.Amount);
+
+            // Others' shares on expenses I created, grouped by the sharer (money owed to me from expenses).
+            var owedFromExpenses = (await userDocumentsDbContext.ExpenseUsers
+                .Where(eu => eu.Expense.CreatedById == userId && eu.UserId != userId)
+                .GroupBy(eu => eu.UserId)
+                .Select(g => new { CounterpartyId = g.Key, Amount = g.Sum(eu => eu.UserAmount) ?? 0.0 })
+                .ToListAsync())
+                .ToDictionary(x => x.CounterpartyId, x => x.Amount);
+
+            // Settlements I paid to each counterparty (reduces what I owe them).
+            var settlementsIPaid = (await userDocumentsDbContext.Settlements
+                .Where(s => s.PayerId == userId)
+                .GroupBy(s => s.PayeeId)
+                .Select(g => new { CounterpartyId = g.Key, Amount = g.Sum(s => s.Amount) })
+                .ToListAsync())
+                .ToDictionary(x => x.CounterpartyId, x => (double)x.Amount);
+
+            // Settlements each counterparty paid me (reduces what they owe me).
+            var settlementsTheyPaid = (await userDocumentsDbContext.Settlements
+                .Where(s => s.PayeeId == userId)
+                .GroupBy(s => s.PayerId)
+                .Select(g => new { CounterpartyId = g.Key, Amount = g.Sum(s => s.Amount) })
+                .ToListAsync())
+                .ToDictionary(x => x.CounterpartyId, x => (double)x.Amount);
+
+            var counterpartyIds = oweFromExpenses.Keys
+                .Concat(owedFromExpenses.Keys)
+                .Concat(settlementsIPaid.Keys)
+                .Concat(settlementsTheyPaid.Keys)
+                .Distinct();
+
+            var net = new Dictionary<Guid, double>();
+            foreach (var counterpartyId in counterpartyIds)
+            {
+                var owed = owedFromExpenses.GetValueOrDefault(counterpartyId)
+                    - settlementsTheyPaid.GetValueOrDefault(counterpartyId);
+                var owe = oweFromExpenses.GetValueOrDefault(counterpartyId)
+                    - settlementsIPaid.GetValueOrDefault(counterpartyId);
+                net[counterpartyId] = owed - owe;
+            }
+            return net;
+        }
+
+        public async Task<BalanceDetailDto?> GetBalanceDetailAsync(Guid counterpartyId)
+        {
+            var user = await GetCurrentUserAsync();
+
+            var counterparty = await userDocumentsDbContext.Users.FirstOrDefaultAsync(u => u.Id == counterpartyId);
+            if (counterparty == null)
+            {
+                return null;
+            }
+
+            var expenseEntries = await userDocumentsDbContext.ExpenseUsers
+                .Where(eu =>
+                    (eu.UserId == user.Id && eu.Expense.CreatedById == counterpartyId) ||
+                    (eu.UserId == counterpartyId && eu.Expense.CreatedById == user.Id))
+                .Select(eu => new BalanceDetailEntryDto
+                {
+                    Type = "expense",
+                    Id = eu.ExpenseId,
+                    Description = eu.Expense.Title,
+                    Amount = eu.UserAmount ?? 0.0,
+                    Direction = eu.UserId == user.Id ? "youOwe" : "owedToYou",
+                    CreatedAt = eu.Expense.CreatedAt
+                })
+                .ToListAsync();
+
+            var settlementEntries = await userDocumentsDbContext.Settlements
+                .Where(s =>
+                    (s.PayerId == user.Id && s.PayeeId == counterpartyId) ||
+                    (s.PayerId == counterpartyId && s.PayeeId == user.Id))
+                .Select(s => new BalanceDetailEntryDto
+                {
+                    Type = "settlement",
+                    Id = s.Id,
+                    Description = s.Note ?? "Settlement",
+                    Amount = (double)s.Amount,
+                    Direction = s.PayerId == user.Id ? "youOwe" : "owedToYou",
+                    CreatedAt = s.CreatedAt
+                })
+                .ToListAsync();
+
+            var entries = expenseEntries.Concat(settlementEntries)
+                .OrderBy(e => e.CreatedAt)
+                .ToList();
+
+            var netBalances = await GetNetBalancesByCounterpartyAsync(user.Id);
+            var net = netBalances.GetValueOrDefault(counterpartyId);
+
+            return new BalanceDetailDto
+            {
+                UserId = counterparty.Id,
+                UserName = counterparty.Username,
+                NetAmount = Math.Abs(net),
+                Direction = net > 0 ? "owedToYou" : net < 0 ? "youOwe" : "settled",
+                Entries = entries
             };
         }
     }
