@@ -93,6 +93,58 @@ public class DashboardTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Balances_net_settlements_partial_exact_and_over_settle()
+    {
+        var alice = await RegisterAndLoginAsync("netalice");
+        var bob = await CreateBusinessUserAsync("netbob");
+        var carol = await CreateBusinessUserAsync("netcarol");
+        var dave = await CreateBusinessUserAsync("netdave");
+        var now = DateTime.UtcNow;
+
+        await WithDbAsync(async db =>
+        {
+            var aliceExpense = SeedData.AddExpense(db, alice.Id, "Trip", 300m, "Travel", now);
+            SeedData.AddShare(db, aliceExpense.Id, bob.Id, 100); // bob owes alice 100
+            SeedData.AddShare(db, aliceExpense.Id, carol.Id, 60); // carol owes alice 60
+            SeedData.AddShare(db, aliceExpense.Id, dave.Id, 90); // dave owes alice 90
+
+            void AddSettlement(Guid payerId, Guid payeeId, decimal amount)
+            {
+                db.Settlements.Add(new Expense.API.Models.Domain.Settlement
+                {
+                    Id = Guid.NewGuid(),
+                    PayerId = payerId,
+                    PayeeId = payeeId,
+                    Amount = amount,
+                    CreatedAt = now
+                });
+            }
+
+            AddSettlement(bob.Id, alice.Id, 40m); // partial: bob still owes 60
+            AddSettlement(carol.Id, alice.Id, 60m); // exact: carol settled, disappears
+            AddSettlement(dave.Id, alice.Id, 150m); // over-settle: alice now owes dave 60
+
+            await db.SaveChangesAsync();
+        });
+
+        var balances = await alice.Client.GetFromJsonAsync<OutstandingBalancesDto>("/api/Expense/balances");
+
+        balances!.OwedToYou.Should().ContainSingle();
+        balances.OwedToYou[0].UserName.Should().Be(bob.Username);
+        balances.OwedToYou[0].Amount.Should().Be(60.0);
+        balances.OwedToYou.Should().NotContain(b => b.UserName == carol.Username);
+        balances.OwedToYou.Should().NotContain(b => b.UserName == dave.Username);
+
+        balances.YouOwe.Should().ContainSingle();
+        balances.YouOwe[0].UserName.Should().Be(dave.Username);
+        balances.YouOwe[0].Amount.Should().Be(60.0);
+
+        var summary = await alice.Client.GetFromJsonAsync<DashboardSummaryDto>("/api/Expense/summary?period=month");
+        summary!.OwedToYou.Should().Be(60.0);
+        summary.YouOwe.Should().Be(60.0);
+    }
+
+    [Fact]
     public async Task Monthly_returns_zero_filled_series_with_correct_amounts()
     {
         var dave = await RegisterAndLoginAsync("dave");

@@ -336,6 +336,25 @@ namespace Expense.API.Controllers
             }
         }
 
+        // GET: api/Expense/balances/{userId}
+        [HttpGet("balances/{userId}")]
+        public async Task<IActionResult> GetBalanceDetail(Guid userId)
+        {
+            try
+            {
+                var detail = await expenseRepository.GetBalanceDetailAsync(userId);
+                if (detail == null)
+                {
+                    return NotFound($"User not found: {userId}");
+                }
+                return Ok(detail);
+            }
+            catch (Exception e)
+            {
+                return BadRequest($"An error occurred: {e.Message}");
+            }
+        }
+
         [Authorize]
         [HttpGet("{expenseId}/doc/{docId}")]
         public async Task<IActionResult> GetResults(string expenseId, string docId)
