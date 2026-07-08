@@ -31,6 +31,12 @@ namespace Expense.API.Mappings
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User.Username))
                 .ReverseMap();
 
+            CreateMap<Settlement, SettlementDto>()
+                .ForMember(dest => dest.PayerUserId, opt => opt.MapFrom(src => src.PayerId))
+                .ForMember(dest => dest.PayerUserName, opt => opt.MapFrom(src => src.Payer.Username))
+                .ForMember(dest => dest.PayeeUserId, opt => opt.MapFrom(src => src.PayeeId))
+                .ForMember(dest => dest.PayeeUserName, opt => opt.MapFrom(src => src.Payee.Username));
+
         }
     }
 }
