@@ -90,7 +90,7 @@ GET  /api/Budget?period=month
 
 ## Phase checklist
 
-- [ ] **B1 — Settlement model, repository, endpoints**
+- [x] **B1 — Settlement model, repository, endpoints**
 - [ ] **B2 — Net balances + per-counterparty balance detail**
 - [ ] **B3 — Settlement notification**
 - [ ] **B4 — Budget model, repository, endpoints**

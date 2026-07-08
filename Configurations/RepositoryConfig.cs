@@ -7,6 +7,7 @@ using Expense.API.Repositories.Notifications;
 using Expense.API.Repositories.QueryBuilder;
 using Expense.API.Repositories.Redis;
 using Expense.API.Repositories.Request;
+using Expense.API.Repositories.Settlement;
 using Expense.API.Repositories.Users;
 
 public static class RepositoryConfig
@@ -23,6 +24,7 @@ public static class RepositoryConfig
         services.AddScoped<IRedisRepository, RedisRepository>();
         services.AddScoped<ITextractNotification, TextractNotification>();
         services.AddScoped<IFriendRequestRepository, FriendRequestRespository>();
+        services.AddScoped<ISettlementRepository, SettlementRepository>();
         services.AddScoped(typeof(QueryBuilder<>));
     }
 }

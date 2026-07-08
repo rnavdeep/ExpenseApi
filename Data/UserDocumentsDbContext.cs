@@ -18,6 +18,7 @@ namespace Expense.API.Data
         public DbSet<DocumentJobResult> DocumentJobResults { get; set; }
         public DbSet<Notification> Notification { get; set; }
         public DbSet<FriendRequest> FriendRequests { get; set; }
+        public DbSet<Settlement> Settlements { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -58,6 +59,18 @@ namespace Expense.API.Data
             modelBuilder.Entity<FriendRequest>()
                 .HasIndex(fr => fr.NotificationId)
                 .IsUnique();
+
+            modelBuilder.Entity<Settlement>()
+                .HasOne(s => s.Payer)
+                .WithMany()
+                .HasForeignKey(s => s.PayerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Settlement>()
+                .HasOne(s => s.Payee)
+                .WithMany()
+                .HasForeignKey(s => s.PayeeId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
