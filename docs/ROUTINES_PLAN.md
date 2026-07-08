@@ -1,0 +1,187 @@
+# Routine Phase Plan — Settle-Up + Budgets (backend)
+
+This file drives an autonomous nightly cloud agent ("the runner"). Each run implements
+exactly **one** unchecked phase below and opens a PR. Humans: review/merge the PR each
+morning; edit specs here any time — the runner always reads this file fresh from `main`.
+
+The frontend counterpart lives in `rnavdeep/expense-analyser` → `docs/ROUTINES_PLAN.md`
+(phases F1–F6). The two are decoupled by the fixed API contracts below — implement the
+contracts **exactly** (camelCase JSON, field names verbatim), because the frontend is built
+against them without waiting for these phases to merge.
+
+## Runner protocol
+
+1. Check for open PRs whose branch starts with `routine/`. If any routine PR is **open and
+   unmerged: exit immediately, change nothing.** Merging is the human throttle.
+2. Pick the **first unchecked phase** in the checklist below. If all are checked, exit without changes.
+3. Create branch `routine/phase-<id>` off `main` (e.g. `routine/phase-b1`).
+4. Implement the phase exactly as specified. Imitate the named pattern files closely — match
+   their style (repository interfaces + implementations, DTO/AutoMapper conventions, SQL
+   script style, test structure). Do not refactor unrelated code, do not implement more than
+   one phase.
+5. Quality gates:
+   - `dotnet build` must pass with no new warnings-as-errors.
+   - `dotnet test Tests/Expense.API.IntegrationTests` — the suite spins up SQL Server + Redis
+     via Testcontainers and needs a Docker daemon. If Docker is unavailable in the sandbox,
+     note this in the PR body; GitHub Actions (`.github/workflows/integration-tests.yml`)
+     runs the full suite on every push/PR and is the gate of record.
+   - New/changed behaviour **must** have integration tests either way.
+6. In the same branch, tick this phase's checkbox below (`- [ ]` → `- [x]`).
+7. Commit (conventional commits, e.g. `feat(settlement): add model, repository and endpoints (phase B1)`),
+   push, and open a PR titled `routine(B<id>): <phase title>`. PR body: what was built, how it
+   was tested, any deviations from the spec and why. End the body with:
+   `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+
+## API contracts (fixed — must match the frontend plan verbatim)
+
+All wire shapes camelCase JSON. All endpoints `[Authorize]`, current user resolved the same
+way existing controllers do (JWT cookie → `IHttpContextAccessor`). Amounts: dollars.
+
+```
+POST /api/Settlement            body { payeeUserId: string(Guid), amount: number, note?: string }
+  → 201 SettlementDto { id, payerUserId, payerUserName, payeeUserId, payeeUserName,
+                        amount, note: string|null, createdAt: string /* ISO 8601 UTC */ }
+     400 when amount <= 0, payee not found, or payee == caller.
+
+GET  /api/Settlement?pageNumber=&pageSize=
+  → SettlementDto[]  — settlements where the caller is payer OR payee, newest first.
+     404 when the caller has none (matches existing GetExpenses behaviour).
+
+GET  /api/Expense/balances       (existing endpoint — after B2 the amounts are NET of settlements)
+  → OutstandingBalancesDto (existing DTO, unchanged shape)
+
+GET  /api/Expense/balances/{userId}
+  → BalanceDetailDto { userId, userName, netAmount: number,
+                       direction: "youOwe" | "owedToYou" | "settled",
+                       entries: BalanceDetailEntryDto[] /* chronological, oldest first */ }
+     BalanceDetailEntryDto { type: "expense" | "settlement", id, description, amount,
+                             direction: "youOwe" | "owedToYou", createdAt }
+     404 when {userId} is not an existing user.
+
+PUT  /api/Budget                body { category: string, monthlyLimit: number }   (upsert per caller+category)
+  → 200 BudgetDto { id, category, monthlyLimit }    400 when monthlyLimit <= 0 or category blank.
+
+GET  /api/Budget?period=month
+  → BudgetStatusDto[] { category, monthlyLimit, spent }
+     `spent` = caller's current-calendar-month expense total in that category (same
+     category semantics as GetDashboardSummaryAsync: Category null → "Other").
+     404 when the caller has no budgets.
+```
+
+## Codebase orientation (read these before coding)
+
+- Domain models: `Models/Domain/...` (see `Models/Domain/FriendRequest/FriendRequest.cs`,
+  `Models/Domain/Notifications/Notification.cs`); DbSets in `Data/UserDocumentsDbContext.cs`.
+- DTOs: `Models/DTO/*.cs`; AutoMapper maps in `Mappings/AutomapperProfiles.cs`.
+- Repository pattern: interface + implementation per folder (exemplar:
+  `Repositories/FriendRequest/`); DI registration in `Configurations/RepositoryConfig.cs`.
+- Aggregations exemplar: `Repositories/Expense/ExpenseRepository.cs` —
+  `GetDashboardSummaryAsync` (line ~357) and `GetOutstandingBalancesAsync` (line ~439).
+- Notifications + SignalR: `ITextractNotification.CreateNotifcation(userId, message, title, isFriendRequest)`
+  (note the existing misspelling) plus `IHubContext<TextractNotificationHub>` →
+  `.Clients.User(userName).SendAsync("TextractNotification", message)`. Exemplar call site:
+  `Repositories/FriendRequest/FriendRequestRepository.cs` (~lines 58–72).
+- SQL scripts: `ExpenseAnalyserDbScripts/` — numbered, idempotent (`IF NOT EXISTS` guards, see
+  `09-add-expense-category.sql`). Also add an EF migration (`Migrations/`) for each schema change.
+- Tests: `Tests/Expense.API.IntegrationTests` — xUnit + FluentAssertions;
+  `IntegrationTestBase` gives `RegisterAndLoginAsync`, `CreateBusinessUserAsync`, `WithDbAsync`,
+  `Unique`; deterministic seeding via `Infrastructure/SeedData.cs` (`AddExpense`, `AddShare`,
+  `AddReceipt`). Exemplar suite: `DashboardTests.cs`.
+
+## Phase checklist
+
+- [ ] **B1 — Settlement model, repository, endpoints**
+- [ ] **B2 — Net balances + per-counterparty balance detail**
+- [ ] **B3 — Settlement notification**
+- [ ] **B4 — Budget model, repository, endpoints**
+- [ ] **B5 — Budget threshold alerts**
+
+---
+
+### B1 — Settlement model, repository, endpoints
+
+- `Models/Domain/Settlement/Settlement.cs`: `Id (Guid)`, `PayerId (Guid)` + `Payer` nav,
+  `PayeeId (Guid)` + `Payee` nav, `Amount (decimal)`, `Note (string?)`,
+  `CreatedAt (DateTime, default UtcNow)`. Add `DbSet<Settlement> Settlements` to
+  `UserDocumentsDbContext` and configure the two `User` relationships with
+  `DeleteBehavior.Restrict` (the test host applies `RestrictCascadeModelCustomizer`, but be
+  explicit like other multi-user entities).
+- SQL script `ExpenseAnalyserDbScripts/10-settlements.sql` (idempotent, matching the style of
+  `05-expense_users.sql`/`09-add-expense-category.sql`) **and** an EF migration.
+- `Models/DTO/SettlementDto.cs` + `Models/DTO/CreateSettlementDto.cs` per the contract; map in
+  `Mappings/AutomapperProfiles.cs` (user names resolved from the navs).
+- `Repositories/Settlement/ISettlementRepository.cs` + `SettlementRepository.cs`:
+  `CreateAsync(CreateSettlementDto)` (resolve caller as payer the way FriendRequestRepository
+  resolves the current user; validate amount > 0, payee exists, payee != caller) and
+  `GetForUserAsync(pageNumber, pageSize)`. Register in `Configurations/RepositoryConfig.cs`.
+- `Controllers/SettlementController.cs`: `[Route("api/[controller]")]`, `[Authorize]` —
+  `POST /` → 201 with dto; `GET /?pageNumber=&pageSize=` → list or 404 when empty (mirror
+  `ExpenseController` conventions and `ValidateModelAtrribute` usage).
+- Tests `Tests/Expense.API.IntegrationTests/SettlementTests.cs`: create → 201 + persisted row;
+  validation failures → 400; paged list newest-first for both payer and payee; empty → 404.
+
+### B2 — Net balances + per-counterparty balance detail
+
+- Extend `ExpenseRepository.GetOutstandingBalancesAsync` so each counterparty amount is
+  **net of settlements**: amount owed from shares minus settlements paid in that direction;
+  a counterparty nets across both directions, lands in whichever list (`youOwe`/`owedToYou`)
+  the net sign indicates, and is omitted when the net is 0. `DashboardSummaryDto.YouOwe/OwedToYou`
+  totals (in `GetDashboardSummaryAsync`) must use the same netting.
+- New `GET /api/Expense/balances/{userId}` (controller + `IExpenseRepository` method
+  `GetBalanceDetailAsync(Guid counterpartyId)`) returning `BalanceDetailDto` per the contract:
+  chronological entries combining the caller↔counterparty expense shares (`type: "expense"`,
+  description = expense title, direction relative to the caller) and settlements
+  (`type: "settlement"`, description = note or "Settlement"). 404 for unknown user.
+- New DTOs `Models/DTO/BalanceDetailDto.cs` (+ entry DTO).
+- Tests: extend `DashboardTests.cs` scenarios with settlements asserting exact net numbers
+  (partial settle, exact settle → counterparty disappears, over-settle flips direction), and
+  add `BalanceDetailTests` covering entry ordering, directions, and 404.
+
+### B3 — Settlement notification
+
+- In `SettlementRepository.CreateAsync`, after saving: create a notification for the **payee**
+  via `ITextractNotification.CreateNotifcation(payeeId, message, title, 0)` with title
+  `"Settlement received"` and message `"<payerUserName> settled $<amount> with you"`, then
+  broadcast `await hub.Clients.User(<payeeUserName>).SendAsync("TextractNotification", message)` —
+  copy the exemplar in `FriendRequestRepository` (~lines 58–72), including its error-tolerant
+  structure (a notification failure must not fail the settlement).
+- Tests: extend `SettlementTests.cs` — after a successful POST, the payee has an unread
+  notification with the expected title/message (assert via `WithDbAsync` or the payee's
+  `/api/Notification` endpoints, mirroring `FriendsNotificationTests.cs`).
+
+### B4 — Budget model, repository, endpoints
+
+- `Models/Domain/Budget/Budget.cs`: `Id`, `UserId` + `User` nav, `Category (string, 64)`,
+  `MonthlyLimit (decimal)`, `UpdatedAt`. Unique index on `(UserId, Category)`. `DbSet<Budget> Budgets`;
+  SQL script `ExpenseAnalyserDbScripts/11-budgets.sql` + EF migration.
+- DTOs `BudgetDto`, `UpsertBudgetDto`, `BudgetStatusDto` per contract + AutoMapper maps.
+- `Repositories/Budget/IBudgetRepository.cs` + `BudgetRepository.cs`:
+  `UpsertAsync(UpsertBudgetDto)` (insert-or-update by caller+category, case-insensitive
+  category match, validate limit > 0 and category non-blank) and `GetStatusAsync(string period)`
+  — for `period=month`, join each budget with the caller's current-calendar-month expense
+  total in that category, reusing the category semantics of `GetDashboardSummaryAsync`
+  (null Category → "Other"). Register in `RepositoryConfig`.
+- `Controllers/BudgetController.cs`: `PUT /api/Budget` → 200 dto (400 invalid);
+  `GET /api/Budget?period=month` → list or 404 when the caller has no budgets.
+- Tests `BudgetTests.cs`: upsert creates then updates the same row; validation 400s;
+  status math (seed categorised + uncategorised expenses via `SeedData.AddExpense`, assert
+  exact `spent` incl. the "Other" bucket); prior-month expenses excluded; empty → 404.
+
+### B5 — Budget threshold alerts
+
+- After an expense is created or updated (hook into the repository methods behind
+  `POST /api/Expense` and `PUT /api/Expense/{id}` in `ExpenseRepository`), if the expense's
+  category has a budget for the current month: compute utilization before/after the change and
+  when it **crosses** 80% or 100%, create a notification for the expense owner
+  (title `"Budget alert"`, message e.g. `"You've used 82% of your $300 Groceries budget this month"`)
+  and broadcast via the hub — same mechanics as B3. Crossing-only semantics = max one alert
+  per budget/threshold/month without needing a new table; a notification failure must not
+  fail the expense write.
+- Tests `BudgetAlertTests.cs`: expense pushing a category from 70%→85% yields exactly one
+  80% alert; a further push to 105% yields exactly one 100% alert; staying below 80% or moving
+  within 80–99% yields none; uncategorised expenses count against an "Other" budget if one exists.
+
+---
+
+When every box is checked, the runner has nothing left to do — a human should disable the
+routine at https://claude.ai/code/routines (or extend this file with new phases).
