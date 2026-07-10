@@ -37,6 +37,8 @@ namespace Expense.API.Mappings
                 .ForMember(dest => dest.PayeeUserId, opt => opt.MapFrom(src => src.PayeeId))
                 .ForMember(dest => dest.PayeeUserName, opt => opt.MapFrom(src => src.Payee.Username));
 
+            CreateMap<Budget, BudgetDto>();
+
         }
     }
 }

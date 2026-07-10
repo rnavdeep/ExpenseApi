@@ -93,7 +93,7 @@ GET  /api/Budget?period=month
 - [x] **B1 — Settlement model, repository, endpoints**
 - [x] **B2 — Net balances + per-counterparty balance detail**
 - [x] **B3 — Settlement notification**
-- [ ] **B4 — Budget model, repository, endpoints**
+- [x] **B4 — Budget model, repository, endpoints**
 - [ ] **B5 — Budget threshold alerts**
 
 ---
