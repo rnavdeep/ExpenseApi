@@ -136,6 +136,39 @@ public class SettlementTests : IntegrationTestBase
     }
 
     [Fact]
+    public async Task Create_notifies_the_payee()
+    {
+        var alice = await RegisterAndLoginAsync("setnotifyalice");
+        var bob = await RegisterAndLoginAsync("setnotifybob");
+
+        var res = await alice.Client.PostAsJsonAsync("/api/Settlement", new CreateSettlementDto
+        {
+            PayeeUserId = bob.Id,
+            Amount = 25m,
+            Note = "coffee"
+        });
+        res.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        await WithDbAsync(async db =>
+        {
+            var notification = await db.Notification
+                .Where(n => n.UserId == bob.Id)
+                .OrderByDescending(n => n.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            notification.Should().NotBeNull();
+            notification!.Title.Should().Be("Settlement received");
+            notification.Message.Should().Be($"{alice.UserName} settled $25 with you");
+            notification.IsRead.Should().Be((byte)0);
+        });
+
+        var notifRes = await bob.Client.GetAsync("/api/Notification");
+        notifRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        var notifications = await notifRes.Content.ReadFromJsonAsync<List<NotificationDto>>();
+        notifications.Should().Contain(n => n.Title == "Settlement received");
+    }
+
+    [Fact]
     public async Task Endpoints_require_authentication()
     {
         var getRes = await Factory.CreateClient().GetAsync("/api/Settlement");

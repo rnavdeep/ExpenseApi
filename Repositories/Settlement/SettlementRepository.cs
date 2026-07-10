@@ -1,9 +1,11 @@
 using System.Security.Claims;
 using AutoMapper;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
 using Expense.API.Models.DTO;
+using Expense.API.Repositories.Notifications;
 using SettlementModel = Expense.API.Models.Domain.Settlement;
 
 namespace Expense.API.Repositories.Settlement
@@ -13,12 +15,17 @@ namespace Expense.API.Repositories.Settlement
         private readonly UserDocumentsDbContext userDocumentsDbContext;
         private readonly IHttpContextAccessor httpContextAccessor;
         private readonly IMapper mapper;
+        private readonly IServiceProvider serviceProvider;
+        private readonly IHubContext<TextractNotificationHub> textractNotification;
 
-        public SettlementRepository(UserDocumentsDbContext userDocumentsDbContext, IHttpContextAccessor httpContextAccessor, IMapper mapper)
+        public SettlementRepository(UserDocumentsDbContext userDocumentsDbContext, IHttpContextAccessor httpContextAccessor, IMapper mapper,
+            IServiceProvider serviceProvider, IHubContext<TextractNotificationHub> textractNotification)
         {
             this.userDocumentsDbContext = userDocumentsDbContext;
             this.httpContextAccessor = httpContextAccessor;
             this.mapper = mapper;
+            this.serviceProvider = serviceProvider;
+            this.textractNotification = textractNotification;
         }
 
         /// <summary>
@@ -76,7 +83,32 @@ namespace Expense.API.Repositories.Settlement
             await userDocumentsDbContext.Settlements.AddAsync(settlement);
             await userDocumentsDbContext.SaveChangesAsync();
 
+            await NotifyPayeeAsync(payer, payee, createSettlementDto.Amount);
+
             return mapper.Map<SettlementDto>(settlement);
+        }
+
+        /// <summary>
+        /// Notify the payee that a settlement was recorded. A notification failure must not fail the settlement.
+        /// </summary>
+        private async Task NotifyPayeeAsync(User payer, User payee, decimal amount)
+        {
+            try
+            {
+                var message = $"{payer.Username} settled ${amount} with you";
+
+                using (var scope = serviceProvider.CreateScope())
+                {
+                    var textractNotificationDb = scope.ServiceProvider.GetRequiredService<ITextractNotification>();
+                    await textractNotificationDb.CreateNotifcation(payee.Id, message, "Settlement received", 0);
+                }
+
+                await textractNotification.Clients.User(payee.Username).SendAsync("TextractNotification", message);
+            }
+            catch
+            {
+                // Swallow: a notification failure must not fail the settlement.
+            }
         }
 
         public async Task<List<SettlementDto>> GetForUserAsync(int pageNumber, int pageSize)
