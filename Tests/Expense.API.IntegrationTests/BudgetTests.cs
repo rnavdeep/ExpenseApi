@@ -78,17 +78,16 @@ public class BudgetTests : IntegrationTestBase
     {
         var alice = await RegisterAndLoginAsync("budgetstatus");
         var now = DateTime.UtcNow;
-        var thisMonth = new DateTime(now.Year, now.Month, 15, 0, 0, 0, DateTimeKind.Utc);
-        var lastMonth = thisMonth.AddMonths(-1);
+        var lastMonth = now.AddMonths(-1);
 
         await alice.Client.PutAsJsonAsync("/api/Budget", new UpsertBudgetDto { Category = "Groceries", MonthlyLimit = 300m });
         await alice.Client.PutAsJsonAsync("/api/Budget", new UpsertBudgetDto { Category = "Other", MonthlyLimit = 50m });
 
         await WithDbAsync(async db =>
         {
-            SeedData.AddExpense(db, alice.Id, "Weekly shop", 120m, "Groceries", thisMonth);
-            SeedData.AddExpense(db, alice.Id, "More shopping", 40m, "Groceries", thisMonth);
-            SeedData.AddExpense(db, alice.Id, "Misc", 25m, null, thisMonth);
+            SeedData.AddExpense(db, alice.Id, "Weekly shop", 120m, "Groceries", now);
+            SeedData.AddExpense(db, alice.Id, "More shopping", 40m, "Groceries", now);
+            SeedData.AddExpense(db, alice.Id, "Misc", 25m, null, now);
             SeedData.AddExpense(db, alice.Id, "Prior month shop", 999m, "Groceries", lastMonth);
             await db.SaveChangesAsync();
         });
