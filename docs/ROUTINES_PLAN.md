@@ -81,6 +81,17 @@ GET  /api/Budget?period=month
      `spent` = caller's current-calendar-month expense total in that category (same
      category semantics as GetDashboardSummaryAsync: Category null → "Other").
      404 when the caller has no budgets.
+
+GET  /api/Friends/getFriends        (existing endpoint; gains `userId` in phase B6)
+  → FriendsListDto[] { userId: string(Guid), username, date: string, sharedExpenses: ExpenseDto[] }
+     `userId` = the *other* party's id (mirrors how `username` is already resolved) — needed by
+     the frontend to link each friend row to `/balances/{userId}` (frontend phase F7).
+
+POST /api/Expense/{id}/addUser?userId=   (existing endpoint; after B7 friend-gated)
+     400 "Users must be friends before sharing an expense." when there is no accepted
+     FriendRequest row between the caller and {userId} (same predicate as
+     FriendRequestRepository.GetFriends/GetDropdownUsers: either direction, IsAccepted == 1).
+     Existing checks (user/expense exist, not already assigned) are unchanged and still apply.
 ```
 
 ## Codebase orientation (read these before coding)
@@ -110,6 +121,8 @@ GET  /api/Budget?period=month
 - [x] **B3 — Settlement notification**
 - [x] **B4 — Budget model, repository, endpoints**
 - [ ] **B5 — Budget threshold alerts**
+- [ ] **B6 — Expose `userId` on `GET /api/Friends/getFriends`**
+- [ ] **B7 — Require friendship before adding a user to an expense split**
 
 ---
 
@@ -195,6 +208,50 @@ GET  /api/Budget?period=month
 - Tests `BudgetAlertTests.cs`: expense pushing a category from 70%→85% yields exactly one
   80% alert; a further push to 105% yields exactly one 100% alert; staying below 80% or moving
   within 80–99% yields none; uncategorised expenses count against an "Other" budget if one exists.
+
+### B6 — Expose `userId` on `GET /api/Friends/getFriends`
+
+Context: the frontend Friends page (phase F7 in the frontend plan) wants to link each friend
+row to `/balances/{userId}` — the balance-detail view from B2 — so a fully settled friend (who
+no longer appears in the dashboard's balances panel) is still reachable. That needs the
+counterparty's id, which `FriendsListDto` currently doesn't carry.
+
+- `Models/DTO/FriendsListDto.cs`: add `public Guid UserId { get; set; }`.
+- `Repositories/FriendRequest/FriendRequestRepository.cs`, `GetFriends()` (~line 146): when
+  projecting each `FriendsListDto`, set `UserId = friend.SentByUserId == user.Id ? friend.SentToUserId : friend.SentByUserId`
+  — same ternary already used one line below for `Username`, just resolving the id instead of
+  the nav's `Username`.
+- Tests: extend `FriendsNotificationTests.cs` (or add a `FriendsTests.cs` if no plain CRUD
+  suite exists yet) asserting `GetFriends()` / `GET /api/Friends/getFriends` returns the
+  correct counterparty id for both request directions (caller as `SentBy` and as `SentTo`).
+
+Acceptance: quality gates pass; `Username`/`Date`/`SharedExpenses` behaviour unchanged.
+
+### B7 — Require friendship before adding a user to an expense split
+
+Context: `ExpenseRepository.CreateExpenseUserAsync` currently has zero relationship checks —
+any authenticated caller can add any `userId` to any expense's split, whether or not they're
+friends. The frontend picker (`AssignUsers.vue`) already only offers accepted friends, but
+nothing stops a direct API call from bypassing that. This phase closes it server-side.
+(Out of scope: this phase does **not** add an ownership/authorization check that the caller is
+the expense's creator — that's a separate, pre-existing gap this plan isn't addressing here.)
+
+- `Repositories/Expense/ExpenseRepository.cs`, `CreateExpenseUserAsync(ExpenseUser expenseUser)`:
+  before the existing "already assigned" check, resolve the caller the same way
+  `GetCurrentUserAsync`-style lookups do elsewhere in this file (`ClaimTypes.NameIdentifier` →
+  `Users` lookup), then verify an accepted `FriendRequest` row exists between the caller and
+  `expenseUser.UserId` — same predicate as `FriendRequestRepository.GetFriends`/
+  `GetDropdownUsers` (either direction, `IsAccepted == 1`). If none exists, throw
+  `new Exception("Users must be friends before sharing an expense.")` (the controller already
+  maps repository exceptions to 400, per `ExpenseController.PostUserToExpense`). Skip the check
+  when `expenseUser.UserId` equals the caller's own id (adding yourself, if that ever occurs,
+  isn't a friendship question).
+- Tests: extend `Tests/Expense.API.IntegrationTests` (add `AssignUsersTests.cs` if no existing
+  suite covers `addUser`, otherwise extend the closest one) — adding a non-friend → 400 with the
+  exact message; adding an accepted friend → 200 and the existing share-recalculation behaviour
+  is unchanged; adding a pending (not-yet-accepted) friend request → still 400.
+
+Acceptance: quality gates pass; no change to `CreateExpenseAsync`, `Put`, or any other endpoint.
 
 ---
 
