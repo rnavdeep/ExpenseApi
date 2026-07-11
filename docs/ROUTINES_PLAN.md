@@ -21,11 +21,26 @@ against them without waiting for these phases to merge.
    one phase.
 5. Quality gates:
    - `dotnet build` must pass with no new warnings-as-errors.
-   - `dotnet test Tests/Expense.API.IntegrationTests` — the suite spins up SQL Server + Redis
-     via Testcontainers and needs a Docker daemon. If Docker is unavailable in the sandbox,
-     note this in the PR body; GitHub Actions (`.github/workflows/integration-tests.yml`)
-     runs the full suite on every push/PR and is the gate of record.
-   - New/changed behaviour **must** have integration tests either way.
+   - `dotnet test Tests/Expense.API.IntegrationTests` — **always attempt this**, it's not
+     optional-by-default. The suite spins up SQL Server + Redis via Testcontainers and needs
+     a Docker daemon plus the ability to pull `mcr.microsoft.com/mssql/server`,
+     `redis`, and `testcontainers/ryuk` images. Try: is a daemon reachable (`docker info`),
+     and can those images actually be pulled (`docker pull testcontainers/ryuk:0.6.0`)? Only
+     if that pull is genuinely blocked (sandbox network policy denies the registry) skip
+     running the suite — and say so explicitly in the PR body, including the exact error.
+     Otherwise run the full suite (not just the new phase's test file) before opening the PR
+     and paste the pass/fail summary into the PR body. GitHub Actions
+     (`.github/workflows/integration-tests.yml`) runs the full suite on every push/PR
+     regardless and is the gate of record — but a runner that could have caught a failing
+     test locally and didn't is a bug in the run, not just bad luck.
+   - New/changed behaviour **must** have integration tests, written in the same run as the
+     code they cover — not a follow-up. Follow the date/time conventions already used in
+     `DashboardTests.cs` and friends: seed "current period" fixtures with `DateTime.UtcNow`
+     captured once per test (not a hand-picked day-of-month like the 15th), since a fixture
+     dated later in the current month than the day the suite actually runs on silently drops
+     out of any `CreatedAt <= now` window and fails only on some days. Seed "prior period"
+     fixtures via `.AddMonths(-1)`/`.AddDays(-N)` off that same `now`, not a second hand-picked
+     constant.
 6. In the same branch, tick this phase's checkbox below (`- [ ]` → `- [x]`).
 7. Commit (conventional commits, e.g. `feat(settlement): add model, repository and endpoints (phase B1)`),
    push, and open a PR titled `routine(B<id>): <phase title>`. PR body: what was built, how it
@@ -93,7 +108,7 @@ GET  /api/Budget?period=month
 - [x] **B1 — Settlement model, repository, endpoints**
 - [x] **B2 — Net balances + per-counterparty balance detail**
 - [x] **B3 — Settlement notification**
-- [ ] **B4 — Budget model, repository, endpoints**
+- [x] **B4 — Budget model, repository, endpoints**
 - [ ] **B5 — Budget threshold alerts**
 
 ---

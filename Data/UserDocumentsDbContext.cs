@@ -19,6 +19,7 @@ namespace Expense.API.Data
         public DbSet<Notification> Notification { get; set; }
         public DbSet<FriendRequest> FriendRequests { get; set; }
         public DbSet<Settlement> Settlements { get; set; }
+        public DbSet<Budget> Budgets { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -70,6 +71,20 @@ namespace Expense.API.Data
                 .HasOne(s => s.Payee)
                 .WithMany()
                 .HasForeignKey(s => s.PayeeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Budget>()
+                .Property(b => b.Category)
+                .HasMaxLength(64);
+
+            modelBuilder.Entity<Budget>()
+                .HasIndex(b => new { b.UserId, b.Category })
+                .IsUnique();
+
+            modelBuilder.Entity<Budget>()
+                .HasOne(b => b.User)
+                .WithMany()
+                .HasForeignKey(b => b.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }
