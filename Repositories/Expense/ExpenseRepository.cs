@@ -1,11 +1,14 @@
 ﻿using System.Globalization;
 using System.Security.Claims;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
 using ExpenseModel = Expense.API.Models.Domain.Expense;
+using BudgetModel = Expense.API.Models.Domain.Budget;
 using System;
 using Expense.API.Models.DTO;
+using Expense.API.Repositories.Notifications;
 using Expense.API.Repositories.QueryBuilder;
 
 namespace Expense.API.Repositories.Expense
@@ -14,11 +17,16 @@ namespace Expense.API.Repositories.Expense
 	{
         private readonly UserDocumentsDbContext userDocumentsDbContext;
         private readonly IHttpContextAccessor httpContextAccessor;
-        
-        public ExpenseRepository(UserDocumentsDbContext userDocumentsDbContext, IHttpContextAccessor httpContextAccessor)
+        private readonly IServiceProvider serviceProvider;
+        private readonly IHubContext<TextractNotificationHub> textractNotification;
+
+        public ExpenseRepository(UserDocumentsDbContext userDocumentsDbContext, IHttpContextAccessor httpContextAccessor,
+            IServiceProvider serviceProvider, IHubContext<TextractNotificationHub> textractNotification)
 		{
             this.userDocumentsDbContext = userDocumentsDbContext;
             this.httpContextAccessor = httpContextAccessor;
+            this.serviceProvider = serviceProvider;
+            this.textractNotification = textractNotification;
 		}
 
         public async Task<ExpenseModel> CreateExpenseAsync(ExpenseModel expense)
@@ -37,6 +45,7 @@ namespace Expense.API.Repositories.Expense
                 expense.CreatedById = user.Id;
                 await userDocumentsDbContext.Expenses.AddAsync(expense);
                 await userDocumentsDbContext.SaveChangesAsync();
+                await CheckBudgetThresholdAsync(expense);
             }
             else
             {
@@ -312,6 +321,7 @@ namespace Expense.API.Repositories.Expense
                 expense.Description = updateExpenseDto.Description;
                 expense.Category = updateExpenseDto.Category;
                 await userDocumentsDbContext.SaveChangesAsync();
+                await CheckBudgetThresholdAsync(expense);
                 return expense;
             }
             throw new Exception("Update Failed, Expense Not found");
@@ -574,6 +584,90 @@ namespace Expense.API.Repositories.Expense
                 Direction = net > 0 ? "owedToYou" : net < 0 ? "youOwe" : "settled",
                 Entries = entries
             };
+        }
+
+        // ----- Budget threshold alerts -----
+
+        private static string NormalizeCategory(string? category)
+        {
+            var trimmed = category?.Trim();
+            return string.IsNullOrEmpty(trimmed) ? "Other" : trimmed;
+        }
+
+        /// <summary>
+        /// Sum of the user's current-calendar-month expenses in the given category (same "Other"
+        /// bucket semantics as GetDashboardSummaryAsync/BudgetRepository), excluding one expense.
+        /// </summary>
+        private async Task<decimal> GetCurrentMonthCategorySpentAsync(Guid userId, string normalizedCategory, Guid excludeExpenseId)
+        {
+            var now = DateTime.UtcNow;
+            var from = new DateTime(now.Year, now.Month, 1);
+
+            var expenses = await userDocumentsDbContext.Expenses
+                .Where(e => e.CreatedById == userId && e.CreatedAt >= from && e.CreatedAt <= now && e.Id != excludeExpenseId)
+                .Select(e => new { e.Category, e.Amount })
+                .ToListAsync();
+
+            return expenses
+                .Where(e => NormalizeCategory(e.Category).Equals(normalizedCategory, StringComparison.OrdinalIgnoreCase))
+                .Sum(e => e.Amount);
+        }
+
+        /// <summary>
+        /// After an expense create/update, alert the owner once per budget/threshold/month when the
+        /// expense's category utilization crosses 80% or 100%. A notification failure must not fail
+        /// the expense write.
+        /// </summary>
+        private async Task CheckBudgetThresholdAsync(ExpenseModel expense)
+        {
+            try
+            {
+                var normalizedCategory = NormalizeCategory(expense.Category);
+
+                var budget = await userDocumentsDbContext.Budgets.FirstOrDefaultAsync(
+                    b => b.UserId == expense.CreatedById && b.Category.ToLower() == normalizedCategory.ToLower());
+
+                if (budget == null || budget.MonthlyLimit <= 0)
+                {
+                    return;
+                }
+
+                var spentExcludingThis = await GetCurrentMonthCategorySpentAsync(expense.CreatedById, normalizedCategory, expense.Id);
+                var spentIncludingThis = spentExcludingThis + expense.Amount;
+
+                var beforePct = (double)(spentExcludingThis / budget.MonthlyLimit) * 100.0;
+                var afterPct = (double)(spentIncludingThis / budget.MonthlyLimit) * 100.0;
+
+                foreach (var threshold in new[] { 80.0, 100.0 })
+                {
+                    if (beforePct < threshold && afterPct >= threshold)
+                    {
+                        await NotifyBudgetThresholdAsync(expense.CreatedById, budget, afterPct);
+                    }
+                }
+            }
+            catch
+            {
+                // Swallow: a notification failure must not fail the expense write.
+            }
+        }
+
+        private async Task NotifyBudgetThresholdAsync(Guid userId, BudgetModel budget, double afterPct)
+        {
+            var pctRounded = (int)Math.Round(afterPct, MidpointRounding.AwayFromZero);
+            var message = $"You've used {pctRounded}% of your ${budget.MonthlyLimit:0.##} {budget.Category} budget this month";
+
+            using (var scope = serviceProvider.CreateScope())
+            {
+                var textractNotificationDb = scope.ServiceProvider.GetRequiredService<ITextractNotification>();
+                await textractNotificationDb.CreateNotifcation(userId, message, "Budget alert", 0);
+            }
+
+            var user = await userDocumentsDbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            if (user != null)
+            {
+                await textractNotification.Clients.User(user.Username).SendAsync("TextractNotification", message);
+            }
         }
     }
 }
