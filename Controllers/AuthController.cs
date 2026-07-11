@@ -62,38 +62,41 @@ namespace Expense.API.Controllers
             {
                 var identityResult = await userManager.CreateAsync(identityUser, registerRequestDto.Password);
 
-                if (identityResult.Succeeded)
+                if (!identityResult.Succeeded)
                 {
-                    if (registerRequestDto.Roles != null && registerRequestDto.Roles.Any())
+                    return BadRequest(identityResult.Errors);
+                }
+
+                if (registerRequestDto.Roles != null && registerRequestDto.Roles.Any())
+                {
+                    //add roles to user
+                    var roleResult = await userManager.AddToRolesAsync(identityUser, registerRequestDto.Roles);
+                    if (!roleResult.Succeeded)
                     {
-                        //add roles to user
-                        identityResult = await userManager.AddToRolesAsync(identityUser, registerRequestDto.Roles);
-                        if (identityResult.Succeeded)
-                        {
-                            // Generate password reset token
-                            var token = await userManager.GeneratePasswordResetTokenAsync(identityUser);
-
-                            // Create reset password link
-                            var resetLink = Url.Action("ResetPassword", "Account",
-                                new { userId = identityUser.Id, token = token }, Request.Scheme);
-
-                            var userModel = mapper.Map<User>(registerRequestDto);
-                            userModel.Email = registerRequestDto.Email;
-                            var userCreated = await userRepository.CreateAsync(userModel);
-                            if (userCreated != null)
-                            {
-                                return Ok(userCreated);
-                            }
-                            else
-                            {
-                                await userManager.DeleteAsync(identityUser);
-                                return BadRequest("Unable to Add User to Local Db");
-                            }
-                        }
+                        await userManager.DeleteAsync(identityUser);
+                        return BadRequest(roleResult.Errors);
                     }
                 }
-                return BadRequest(identityResult.Errors);
 
+                // Generate password reset token
+                var token = await userManager.GeneratePasswordResetTokenAsync(identityUser);
+
+                // Create reset password link
+                var resetLink = Url.Action("ResetPassword", "Account",
+                    new { userId = identityUser.Id, token = token }, Request.Scheme);
+
+                var userModel = mapper.Map<User>(registerRequestDto);
+                userModel.Email = registerRequestDto.Email;
+                var userCreated = await userRepository.CreateAsync(userModel);
+                if (userCreated != null)
+                {
+                    return Ok(userCreated);
+                }
+                else
+                {
+                    await userManager.DeleteAsync(identityUser);
+                    return BadRequest("Unable to Add User to Local Db");
+                }
             }
             return BadRequest("User with Email Already Exists");
 
