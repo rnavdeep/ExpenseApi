@@ -23,7 +23,7 @@ public class AuthTests : IntegrationTestBase
     }
 
     [Fact]
-    public async Task Register_without_role_is_rejected()
+    public async Task Register_without_role_succeeds()
     {
         var client = Factory.CreateClient();
         var userName = Unique("norole");
@@ -36,8 +36,16 @@ public class AuthTests : IntegrationTestBase
             Roles = Array.Empty<string>()
         });
 
-        // Without a role the business Users row is never created -> BadRequest.
-        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // The frontend's registration form never sends roles, so role assignment
+        // must be optional and can't gate whether the account is created.
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var loginRes = await client.PostAsJsonAsync("/api/Auth/Login", new LoginRequestDto
+        {
+            Username = userName,
+            Password = "Passw0rd!"
+        });
+        loginRes.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
