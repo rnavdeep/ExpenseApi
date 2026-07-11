@@ -421,8 +421,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
                         S3Object = new S3Object
                         {
                             Bucket = bucketName,
-                            Name = key,
-                            Version = document.VersionId
+                            Name = key
                         }
                     }
                 };
