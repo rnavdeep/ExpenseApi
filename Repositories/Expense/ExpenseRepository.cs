@@ -86,14 +86,90 @@ namespace Expense.API.Repositories.Expense
 
             var eachPercentage = Math.Round(1.00 / expenseUsers.Count, 2);
 
-            // Update each user with the calculated share percentage
+            // Update each user with the calculated share percentage and corresponding dollar amount
             foreach (var expUser in expenseUsers)
             {
                 expUser.UserShare = eachPercentage;
+                expUser.UserAmount = Math.Round(eachPercentage * (double)expense.Amount, 2);
             }
             await userDocumentsDbContext.SaveChangesAsync();
 
             return expenseUser;
+        }
+
+        public async Task<List<ExpenseUser>> RemoveExpenseUserAsync(Guid expenseId, Guid userId)
+        {
+            var expense = await userDocumentsDbContext.Expenses.FirstOrDefaultAsync(
+                expense => expense.Id.Equals(expenseId));
+            if (expense == null)
+            {
+                throw new Exception("Expense not found.");
+            }
+
+            var expenseUsers = await userDocumentsDbContext.ExpenseUsers
+                .Where(expUser => expUser.ExpenseId == expenseId)
+                .ToListAsync();
+
+            var expenseUserToRemove = expenseUsers.FirstOrDefault(expUser => expUser.UserId == userId);
+            if (expenseUserToRemove == null)
+            {
+                throw new Exception("User is not assigned to this expense.");
+            }
+
+            if (expenseUsers.Count <= 1)
+            {
+                throw new Exception("Cannot remove the last remaining user from an expense.");
+            }
+
+            userDocumentsDbContext.ExpenseUsers.Remove(expenseUserToRemove);
+            expenseUsers.Remove(expenseUserToRemove);
+
+            // Re-divide the expense equally among the remaining users.
+            var eachPercentage = Math.Round(1.00 / expenseUsers.Count, 2);
+            foreach (var expUser in expenseUsers)
+            {
+                expUser.UserShare = eachPercentage;
+                expUser.UserAmount = Math.Round(eachPercentage * (double)expense.Amount, 2);
+            }
+            await userDocumentsDbContext.SaveChangesAsync();
+
+            return await GetAssignUsers(expenseId);
+        }
+
+        public async Task<List<ExpenseUser>> UpdateExpenseUserSharesAsync(Guid expenseId, List<UpdateExpenseUserShareDto> shares)
+        {
+            var expense = await userDocumentsDbContext.Expenses.FirstOrDefaultAsync(
+                expense => expense.Id.Equals(expenseId));
+            if (expense == null)
+            {
+                throw new Exception("Expense not found.");
+            }
+
+            var expenseUsers = await userDocumentsDbContext.ExpenseUsers
+                .Where(expUser => expUser.ExpenseId == expenseId)
+                .ToListAsync();
+
+            if (shares == null || shares.Count != expenseUsers.Count
+                || !expenseUsers.All(expUser => shares.Any(s => s.UserId == expUser.UserId)))
+            {
+                throw new Exception("Shares must be provided for exactly the users currently assigned to this expense.");
+            }
+
+            var totalShare = shares.Sum(s => s.UserShare);
+            if (Math.Round(totalShare, 2) != 1.00)
+            {
+                throw new Exception("User shares must add up to 100%.");
+            }
+
+            foreach (var expUser in expenseUsers)
+            {
+                var share = shares.First(s => s.UserId == expUser.UserId).UserShare;
+                expUser.UserShare = share;
+                expUser.UserAmount = Math.Round(share * (double)expense.Amount, 2);
+            }
+            await userDocumentsDbContext.SaveChangesAsync();
+
+            return await GetAssignUsers(expenseId);
         }
 
         public async Task<List<ExpenseUser>> GetAssignUsers(Guid expenseId)

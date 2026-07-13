@@ -60,7 +60,24 @@ namespace Expense.API.Repositories.Expense
 		public Task<ExpenseUser> CreateExpenseUserAsync(ExpenseUser expenseUser);
 
         /// <summary>
-        /// Remove expense 
+        /// Remove a user from an expense and re-divide the remaining share equally.
+        /// </summary>
+        /// <param name="expenseId"></param>
+        /// <param name="userId"></param>
+        /// <returns></returns>
+        public Task<List<ExpenseUser>> RemoveExpenseUserAsync(Guid expenseId, Guid userId);
+
+        /// <summary>
+        /// Set custom share percentages for every user assigned to an expense. The provided shares
+        /// must cover exactly the currently assigned users and sum to 100%.
+        /// </summary>
+        /// <param name="expenseId"></param>
+        /// <param name="shares"></param>
+        /// <returns></returns>
+        public Task<List<ExpenseUser>> UpdateExpenseUserSharesAsync(Guid expenseId, List<UpdateExpenseUserShareDto> shares);
+
+        /// <summary>
+        /// Remove expense
         /// </summary>
         /// <param name="id"></param>
         /// <returns></returns>

@@ -252,6 +252,40 @@ namespace Expense.API.Controllers
             }
         }
 
+        // DELETE api/Expense/{id}/removeUser/{userId}
+        [HttpDelete]
+        [Route("{id}/removeUser/{userId}")]
+        public async Task<IActionResult> DeleteUserFromExpense(string id, string userId)
+        {
+            try
+            {
+                var result = await expenseRepository.RemoveExpenseUserAsync(Guid.Parse(id), Guid.Parse(userId));
+                var resultDto = mapper.Map<List<ExpenseUserDto>>(result);
+                return Ok(resultDto);
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+        }
+
+        // PUT api/Expense/{id}/updateShares
+        [HttpPut]
+        [Route("{id}/updateShares")]
+        public async Task<IActionResult> PutExpenseUserShares(string id, [FromBody] List<UpdateExpenseUserShareDto> shares)
+        {
+            try
+            {
+                var result = await expenseRepository.UpdateExpenseUserSharesAsync(Guid.Parse(id), shares);
+                var resultDto = mapper.Map<List<ExpenseUserDto>>(result);
+                return Ok(resultDto);
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+        }
+
         // PUT api/values/5
         [HttpPut]
         [Route("{id}")]
