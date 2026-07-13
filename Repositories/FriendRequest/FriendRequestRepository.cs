@@ -145,6 +145,7 @@ namespace Expense.API.Repositories.FriendRequest
                     .Select(friend =>
                         new FriendsListDto
                         {
+                            UserId = friend.SentByUserId == user.Id ? friend.SentToUserId : friend.SentByUserId,
                             Username = friend.SentByUserId == user.Id ? friend.SentToUser.Username : friend.SentByUser.Username,
                             AcceptedAt = (DateTime)friend.AcceptedAt,
                             SharedExpenses = new List<ExpenseDto>()
