@@ -122,7 +122,7 @@ POST /api/Expense/{id}/addUser?userId=   (existing endpoint; after B7 friend-gat
 - [x] **B4 — Budget model, repository, endpoints**
 - [x] **B5 — Budget threshold alerts**
 - [x] **B6 — Expose `userId` on `GET /api/Friends/getFriends`**
-- [ ] **B7 — Require friendship before adding a user to an expense split**
+- [x] **B7 — Require friendship before adding a user to an expense split**
 
 ---
 

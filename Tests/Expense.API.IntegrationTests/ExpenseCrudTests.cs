@@ -65,7 +65,8 @@ public class ExpenseCrudTests : IntegrationTestBase
     public async Task AddUser_then_getAssignedUsers_lists_creator_and_peer()
     {
         var user = await RegisterAndLoginAsync("assign");
-        var peer = await CreateBusinessUserAsync("peer");
+        var peer = await RegisterAndLoginAsync("peer");
+        await BefriendAsync(user, peer);
         var created = await CreateExpenseAsync(user.Client, "Dinner", "Shared dinner");
 
         var add = await user.Client.PostAsync($"/api/Expense/{created.Id}/addUser?userId={peer.Id}", null);

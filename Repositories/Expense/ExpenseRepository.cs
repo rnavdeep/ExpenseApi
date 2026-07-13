@@ -67,6 +67,20 @@ namespace Expense.API.Repositories.Expense
 
             if (user != null && expense != null)
             {
+                var currentUser = await GetCurrentUserAsync();
+                if (expenseUser.UserId != currentUser.Id)
+                {
+                    var areFriends = await userDocumentsDbContext.FriendRequests.AnyAsync(
+                        fr => ((fr.SentByUserId == currentUser.Id && fr.SentToUserId == expenseUser.UserId)
+                               || (fr.SentByUserId == expenseUser.UserId && fr.SentToUserId == currentUser.Id))
+                              && fr.IsAccepted == 1);
+
+                    if (!areFriends)
+                    {
+                        throw new Exception("Users must be friends before sharing an expense.");
+                    }
+                }
+
                 var expenseUserExists = await userDocumentsDbContext.ExpenseUsers.FirstOrDefaultAsync(
                                             expenseUser => expenseUser.ExpenseId == expense.Id
                                             && expenseUser.UserId == user.Id);

@@ -86,4 +86,27 @@ public abstract class IntegrationTestBase
         });
         return user;
     }
+
+    /// <summary>Sends a friend request from sender to recipient through the real API and accepts it.</summary>
+    protected async Task BefriendAsync(TestUser sender, TestUser recipient)
+    {
+        var sendRequest = await sender.Client.PostAsJsonAsync("/api/Friends/sendRequest", new UserDto
+        {
+            Id = recipient.Id,
+            Username = recipient.UserName
+        });
+        sendRequest.StatusCode.Should().Be(System.Net.HttpStatusCode.NoContent);
+
+        Guid notificationId = Guid.Empty;
+        await WithDbAsync(async db =>
+        {
+            var friendRequest = await db.FriendRequests.FirstOrDefaultAsync(
+                fr => fr.SentByUserId == sender.Id && fr.SentToUserId == recipient.Id);
+            friendRequest.Should().NotBeNull();
+            notificationId = friendRequest!.NotificationId;
+        });
+
+        var acceptRequest = await recipient.Client.PostAsJsonAsync("/api/Friends/acceptRequest", notificationId.ToString());
+        acceptRequest.StatusCode.Should().Be(System.Net.HttpStatusCode.NoContent);
+    }
 }
