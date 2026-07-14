@@ -21,6 +21,12 @@
         /// </summary>
         public string? Category { get; set; }
 
+        /// <summary>
+        /// Set only at creation. When false, this expense can never have receipt documents
+        /// uploaded or scanned - the amount is fully manual.
+        /// </summary>
+        public bool AllowReceipts { get; set; } = true;
+
         //Navgational Properties
 
         /// <summary>

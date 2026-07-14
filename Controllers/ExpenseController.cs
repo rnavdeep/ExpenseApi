@@ -47,6 +47,11 @@ namespace Expense.API.Controllers
                 {
                     return NotFound($"No expenses found for the logged in user");
                 }
+                var scannedReceiptsTotals = await expenseRepository.GetScannedReceiptsTotalsAsync(expenses.Select(e => e.Id));
+                foreach (var dto in expensesDto)
+                {
+                    dto.ScannedReceiptsTotal = scannedReceiptsTotals.GetValueOrDefault(Guid.Parse(dto.Id));
+                }
                 var result = new
                 {
                     Expenses = expensesDto,
@@ -81,6 +86,11 @@ namespace Expense.API.Controllers
                 if (expensesDto == null || !expensesDto.Any())
                 {
                     return NotFound($"No expenses found for the logged in user");
+                }
+                var scannedReceiptsTotals = await expenseRepository.GetScannedReceiptsTotalsAsync(expenses.Select(e => e.Id));
+                foreach (var dto in expensesDto)
+                {
+                    dto.ScannedReceiptsTotal = scannedReceiptsTotals.GetValueOrDefault(Guid.Parse(dto.Id));
                 }
                 var result = new
                 {
@@ -210,26 +220,26 @@ namespace Expense.API.Controllers
 
         // POST api/values
         [HttpPost]
-        public async Task<IActionResult> Post(string title, string description)
+        public async Task<IActionResult> Post([FromBody] AddExpenseDto addExpenseDto)
         {
-
-            AddExpenseDto addExpenseDto = new AddExpenseDto();
-            addExpenseDto.Amount = 0;
-
-
-            if (title != null && description != null)
+            if (addExpenseDto?.Title != null && addExpenseDto.Description != null)
             {
-                addExpenseDto.Description = description;
-                addExpenseDto.Title = title;
-                var expenseCreated = await expenseRepository.CreateExpenseAsync(mapper.Map<ExpenseModel>(addExpenseDto));
-                var expenseDto = mapper.Map<ExpenseDto>(expenseCreated);
-
-                if (expenseCreated != null)
+                try
                 {
-                    var expenseUser = new ExpenseUser(expenseCreated.Id, expenseCreated.CreatedById, null);
-                    await expenseRepository.CreateExpenseUserAsync(expenseUser);
-                    return Ok(expenseDto);
+                    var expenseCreated = await expenseRepository.CreateExpenseAsync(mapper.Map<ExpenseModel>(addExpenseDto));
+                    var expenseDto = mapper.Map<ExpenseDto>(expenseCreated);
 
+                    if (expenseCreated != null)
+                    {
+                        var expenseUser = new ExpenseUser(expenseCreated.Id, expenseCreated.CreatedById, null);
+                        await expenseRepository.CreateExpenseUserAsync(expenseUser);
+                        return Ok(expenseDto);
+
+                    }
+                }
+                catch (Exception e)
+                {
+                    return BadRequest(e.Message);
                 }
             }
             return BadRequest("Not created expense");

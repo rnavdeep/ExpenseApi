@@ -407,6 +407,11 @@ namespace Expense.API.Repositories.ExpenseAnalysis
                 throw new Exception("Expense does not exist.");
             }
 
+            if (!expenseExists.AllowReceipts)
+            {
+                throw new Exception("This expense does not accept receipt processing.");
+            }
+
             // Find all the documents related to the expense
             DocumentModel? document = await userDocumentsDbContext.Documents
                 .Where(doc => doc.Id == docId && doc.ExpenseId == expenseId)

@@ -84,11 +84,16 @@ namespace Expense.API.Repositories.Expense
         public Task<Boolean> RemoveExpense(Guid id);
 
         /// <summary>
-        /// Update expense 
+        /// Update expense
         /// </summary>
         /// <param name="updateExpenseDto"></param>
         /// <returns></returns>
         public Task<ExpenseModel> UpdateExpenseAsync(UpdateExpenseDto updateExpenseDto);
+
+        /// <summary>
+        /// Sum of successfully-scanned receipt totals per expense, for the given expense ids.
+        /// </summary>
+        public Task<Dictionary<Guid, decimal>> GetScannedReceiptsTotalsAsync(IEnumerable<Guid> expenseIds);
 
         /// <summary>
         /// Get textract result for the table

@@ -31,6 +31,11 @@ namespace Expense.API.Repositories.Expense
 
         public async Task<ExpenseModel> CreateExpenseAsync(ExpenseModel expense)
         {
+            if (expense.Amount < 0)
+            {
+                throw new Exception("Amount cannot be negative.");
+            }
+
             // Retrieve the current logged-in user from the HttpContext
             var userName = httpContextAccessor.HttpContext?.User?.Claims
                              .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
@@ -410,11 +415,41 @@ namespace Expense.API.Repositories.Expense
                 expense.Title = updateExpenseDto.Title;
                 expense.Description = updateExpenseDto.Description;
                 expense.Category = updateExpenseDto.Category;
+
+                if (updateExpenseDto.Amount.HasValue)
+                {
+                    if (updateExpenseDto.Amount.Value < 0)
+                    {
+                        throw new Exception("Amount cannot be negative.");
+                    }
+
+                    var scannedReceiptsTotal = await userDocumentsDbContext.DocumentJobResults
+                        .Where(r => r.ExpenseId == expense.Id && r.Status == 1)
+                        .SumAsync(r => (decimal?)r.Total) ?? 0m;
+
+                    if (updateExpenseDto.Amount.Value < scannedReceiptsTotal)
+                    {
+                        throw new Exception($"Amount cannot be less than the total of scanned receipts (${scannedReceiptsTotal}).");
+                    }
+
+                    expense.Amount = updateExpenseDto.Amount.Value;
+                }
+
                 await userDocumentsDbContext.SaveChangesAsync();
                 await CheckBudgetThresholdAsync(expense);
                 return expense;
             }
             throw new Exception("Update Failed, Expense Not found");
+        }
+
+        public async Task<Dictionary<Guid, decimal>> GetScannedReceiptsTotalsAsync(IEnumerable<Guid> expenseIds)
+        {
+            var ids = expenseIds.ToList();
+            return await userDocumentsDbContext.DocumentJobResults
+                .Where(r => ids.Contains(r.ExpenseId) && r.Status == 1)
+                .GroupBy(r => r.ExpenseId)
+                .Select(g => new { ExpenseId = g.Key, Total = g.Sum(r => r.Total) })
+                .ToDictionaryAsync(x => x.ExpenseId, x => x.Total);
         }
 
         // ----- Dashboard -----

@@ -14,9 +14,16 @@ public class ExpenseCrudTests : IntegrationTestBase
 
     private sealed record ExpenseList(List<ExpenseDto> Expenses, int TotalRows);
 
-    private static async Task<ExpenseDto> CreateExpenseAsync(HttpClient client, string title, string description)
+    private static async Task<ExpenseDto> CreateExpenseAsync(HttpClient client, string title, string description,
+        decimal amount = 0, bool allowReceipts = true)
     {
-        var res = await client.PostAsync($"/api/Expense?title={title}&description={description}", null);
+        var res = await client.PostAsJsonAsync("/api/Expense", new AddExpenseDto
+        {
+            Title = title,
+            Description = description,
+            Amount = amount,
+            AllowReceipts = allowReceipts
+        });
         res.StatusCode.Should().Be(HttpStatusCode.OK, await res.Content.ReadAsStringAsync());
         return (await res.Content.ReadFromJsonAsync<ExpenseDto>())!;
     }
@@ -110,5 +117,88 @@ public class ExpenseCrudTests : IntegrationTestBase
         res.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await res.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("totalRows").GetInt32().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task Create_persists_manual_amount_as_starting_value()
+    {
+        var user = await RegisterAndLoginAsync("amt");
+
+        var created = await CreateExpenseAsync(user.Client, "Groceries", "Weekly shop", amount: 50m);
+
+        created.Amount.Should().Be(50m);
+    }
+
+    [Fact]
+    public async Task Create_without_receipts_blocks_document_upload()
+    {
+        var user = await RegisterAndLoginAsync("norcpt");
+        var created = await CreateExpenseAsync(user.Client, "Cash tip", "No receipt", amount: 20m, allowReceipts: false);
+
+        using var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(new byte[] { 1, 2, 3 });
+        fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/octet-stream");
+        content.Add(fileContent, "file", "receipt.png");
+
+        var res = await user.Client.PostAsync($"/api/Expense/{created.Id}/uploadDoc", content);
+
+        res.IsSuccessStatusCode.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Update_amount_below_scanned_receipts_floor_is_rejected()
+    {
+        var user = await RegisterAndLoginAsync("floorlow");
+        var created = await CreateExpenseAsync(user.Client, "Dinner", "Team dinner", amount: 200m);
+
+        await WithDbAsync(async db =>
+        {
+            var doc = SeedData.AddReceipt(db, user.Id, Guid.Parse(created.Id), DateTime.UtcNow);
+            SeedData.AddDocumentJobResult(db, user.Id, Guid.Parse(created.Id), doc.Id, 100m);
+            await db.SaveChangesAsync();
+        });
+
+        var res = await user.Client.PutAsJsonAsync($"/api/Expense/{created.Id}",
+            new UpdateExpenseDto(created.Id, "Dinner", "Team dinner", amount: 50m));
+
+        res.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+
+        var fetched = await user.Client.GetFromJsonAsync<ExpenseDto>($"/api/Expense/{created.Id}");
+        fetched!.Amount.Should().Be(200m);
+    }
+
+    [Fact]
+    public async Task Update_amount_at_or_above_floor_succeeds()
+    {
+        var user = await RegisterAndLoginAsync("floorok");
+        var created = await CreateExpenseAsync(user.Client, "Dinner", "Team dinner", amount: 200m);
+
+        await WithDbAsync(async db =>
+        {
+            var doc = SeedData.AddReceipt(db, user.Id, Guid.Parse(created.Id), DateTime.UtcNow);
+            SeedData.AddDocumentJobResult(db, user.Id, Guid.Parse(created.Id), doc.Id, 100m);
+            await db.SaveChangesAsync();
+        });
+
+        var res = await user.Client.PutAsJsonAsync($"/api/Expense/{created.Id}",
+            new UpdateExpenseDto(created.Id, "Dinner", "Team dinner", amount: 150m));
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        var updated = await res.Content.ReadFromJsonAsync<ExpenseDto>();
+        updated!.Amount.Should().Be(150m);
+    }
+
+    [Fact]
+    public async Task Update_without_amount_leaves_existing_amount_untouched()
+    {
+        var user = await RegisterAndLoginAsync("noamt");
+        var created = await CreateExpenseAsync(user.Client, "Old", "Old desc", amount: 42m);
+
+        var res = await user.Client.PutAsJsonAsync($"/api/Expense/{created.Id}",
+            new UpdateExpenseDto(created.Id, "New", "New desc"));
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        var updated = await res.Content.ReadFromJsonAsync<ExpenseDto>();
+        updated!.Amount.Should().Be(42m);
     }
 }
