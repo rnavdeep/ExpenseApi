@@ -138,19 +138,43 @@ namespace Expense.API.Repositories.FriendRequest
 
             if (user != null)
             {
-                var friends = await userDocumentsDbContext.FriendRequests
+                var friendLinks = await userDocumentsDbContext.FriendRequests
                     .Where(friend =>
                         (friend.SentByUserId == user.Id || friend.SentToUserId == user.Id) &&
                         friend.IsAccepted == 1)
-                    .Select(friend =>
-                        new FriendsListDto
-                        {
-                            UserId = friend.SentByUserId == user.Id ? friend.SentToUserId : friend.SentByUserId,
-                            Username = friend.SentByUserId == user.Id ? friend.SentToUser.Username : friend.SentByUser.Username,
-                            AcceptedAt = (DateTime)friend.AcceptedAt,
-                            SharedExpenses = new List<ExpenseDto>()
-                        })
+                    .Select(friend => new
+                    {
+                        FriendUserId = friend.SentByUserId == user.Id ? friend.SentToUserId : friend.SentByUserId,
+                        Username = friend.SentByUserId == user.Id ? friend.SentToUser.Username : friend.SentByUser.Username,
+                        friend.AcceptedAt
+                    })
                     .ToListAsync();
+
+                var friends = new List<FriendsListDto>();
+                foreach (var link in friendLinks)
+                {
+                    var sharedExpenses = await userDocumentsDbContext.Expenses
+                        .Where(e =>
+                            (e.CreatedById == user.Id || e.ExpenseUsers.Any(eu => eu.UserId == user.Id)) &&
+                            (e.CreatedById == link.FriendUserId || e.ExpenseUsers.Any(eu => eu.UserId == link.FriendUserId)))
+                        .Select(e => new ExpenseDto
+                        {
+                            Id = e.Id.ToString(),
+                            Title = e.Title,
+                            Description = e.Description,
+                            Amount = e.Amount,
+                            CreatedAt = e.CreatedAt.ToString()
+                        })
+                        .ToListAsync();
+
+                    friends.Add(new FriendsListDto
+                    {
+                        UserId = link.FriendUserId,
+                        Username = link.Username,
+                        AcceptedAt = (DateTime)link.AcceptedAt,
+                        SharedExpenses = sharedExpenses
+                    });
+                }
                 return friends;
             }
             else
