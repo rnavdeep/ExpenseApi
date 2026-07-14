@@ -589,6 +589,11 @@ namespace Expense.API.Repositories.Documents
             var expense = await userDocumentsDbContext.Expenses.FirstOrDefaultAsync(e => e.Id.Equals(expenseId));
             if (userFound != null && expense !=null)
             {
+                if (!expense.AllowReceipts)
+                {
+                    throw new Exception("This expense does not accept receipt uploads.");
+                }
+
                 var bucketName = configuration["AWS:BucketName"];
                 using (var memoryStream = new MemoryStream())
                 {

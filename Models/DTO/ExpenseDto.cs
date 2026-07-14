@@ -13,6 +13,7 @@ namespace Expense.API.Models.DTO
         public string Description { get; set; }
         public decimal Amount { get; set; }
         public string CreatedAt { get; set; }
+        public decimal ScannedReceiptsTotal { get; set; }
         //public ICollection<Document> Documents { get; set; }
         //public List<string> UserIds { get; set; }
     }

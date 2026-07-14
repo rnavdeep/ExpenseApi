@@ -11,6 +11,7 @@ namespace Expense.API.Models.DTO
         public string Description { get; set; }
         public decimal Amount { get; set; }
         public string? Category { get; set; }
+        public bool AllowReceipts { get; set; } = true;
     }
 }
 

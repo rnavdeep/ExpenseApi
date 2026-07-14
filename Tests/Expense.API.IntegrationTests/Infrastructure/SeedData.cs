@@ -54,4 +54,22 @@ public static class SeedData
         db.ExpenseUsers.Add(share);
         return share;
     }
+
+    /// <summary>A scanned-receipt result for a document: Total feeds the ScannedReceiptsTotal floor.</summary>
+    public static DocumentJobResult AddDocumentJobResult(UserDocumentsDbContext db, Guid createdById,
+        Guid expenseId, Guid documentId, decimal total, byte status = 1)
+    {
+        var jobResult = new DocumentJobResult
+        {
+            Id = Guid.NewGuid(),
+            JobId = Guid.NewGuid().ToString(),
+            Status = status,
+            CreatedById = createdById,
+            ExpenseId = expenseId,
+            DocumentId = documentId,
+            Total = total
+        };
+        db.DocumentJobResults.Add(jobResult);
+        return jobResult;
+    }
 }

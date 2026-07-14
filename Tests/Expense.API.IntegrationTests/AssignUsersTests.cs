@@ -13,7 +13,7 @@ public class AssignUsersTests : IntegrationTestBase
 
     private static async Task<ExpenseDto> CreateExpenseAsync(HttpClient client, string title, string description)
     {
-        var res = await client.PostAsync($"/api/Expense?title={title}&description={description}", null);
+        var res = await client.PostAsJsonAsync("/api/Expense", new AddExpenseDto { Title = title, Description = description });
         res.StatusCode.Should().Be(HttpStatusCode.OK, await res.Content.ReadAsStringAsync());
         return (await res.Content.ReadFromJsonAsync<ExpenseDto>())!;
     }
