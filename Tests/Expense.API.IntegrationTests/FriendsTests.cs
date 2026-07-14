@@ -1,10 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using Expense.API.IntegrationTests.Infrastructure;
-using Expense.API.Models.Domain;
 using Expense.API.Models.DTO;
 using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace Expense.API.IntegrationTests;
@@ -12,28 +10,6 @@ namespace Expense.API.IntegrationTests;
 public class FriendsTests : IntegrationTestBase
 {
     public FriendsTests(CustomWebAppFactory factory) : base(factory) { }
-
-    private async Task BefriendAsync(TestUser sender, TestUser recipient)
-    {
-        var sendRequest = await sender.Client.PostAsJsonAsync("/api/Friends/sendRequest", new UserDto
-        {
-            Id = recipient.Id,
-            Username = recipient.UserName
-        });
-        sendRequest.StatusCode.Should().Be(HttpStatusCode.NoContent);
-
-        Guid notificationId = Guid.Empty;
-        await WithDbAsync(async db =>
-        {
-            var friendRequest = await db.FriendRequests.FirstOrDefaultAsync(
-                fr => fr.SentByUserId == sender.Id && fr.SentToUserId == recipient.Id);
-            friendRequest.Should().NotBeNull();
-            notificationId = friendRequest!.NotificationId;
-        });
-
-        var acceptRequest = await recipient.Client.PostAsJsonAsync("/api/Friends/acceptRequest", notificationId.ToString());
-        acceptRequest.StatusCode.Should().Be(HttpStatusCode.NoContent);
-    }
 
     [Fact]
     public async Task GetFriends_returns_the_counterparty_userId_when_caller_sent_the_request()
