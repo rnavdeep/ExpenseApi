@@ -694,6 +694,29 @@ namespace Expense.API.Repositories.Documents
                 throw new Exception(e.Message);
             }
         }
+
+        public string RefreshDownloadUrl(string existingUrl)
+        {
+            if (string.IsNullOrEmpty(existingUrl))
+            {
+                return existingUrl;
+            }
+
+            var bucketName = configuration["AWS:BucketName"];
+            // The object key is the path portion of the previously issued URL
+            // (which may itself be presigned, so query-string params are ignored).
+            var key = Uri.UnescapeDataString(new Uri(existingUrl).AbsolutePath.TrimStart('/'));
+
+            var request = new GetPreSignedUrlRequest
+            {
+                BucketName = bucketName,
+                Key = key,
+                Expires = DateTime.UtcNow.AddDays(1),
+                Verb = HttpVerb.GET
+            };
+
+            return s3Client.GetPreSignedURL(request);
+        }
     }
 }
 

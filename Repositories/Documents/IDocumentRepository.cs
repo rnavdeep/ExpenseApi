@@ -27,6 +27,14 @@ namespace Expense.API.Repositories.Documents
         /// <param name="docId"></param>
         /// <returns></returns>
         public Task<Boolean> DeleteDocumentByDocId(Guid docId);
+        /// <summary>
+        /// Re-signs a previously issued S3 URL so it is valid for another day.
+        /// Stored S3Urls are presigned at upload time and expire, so any endpoint
+        /// serving a document link to a user (not just the uploader) must refresh it first.
+        /// </summary>
+        /// <param name="existingUrl"></param>
+        /// <returns></returns>
+        public string RefreshDownloadUrl(string existingUrl);
 
     }
 }
