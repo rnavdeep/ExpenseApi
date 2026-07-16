@@ -175,6 +175,10 @@ namespace Expense.API.Controllers
                 return BadRequest("Invalid ID format.");
             }
             var result = await expenseRepository.GetDocByExpenseId(expenseId);
+            foreach (var doc in result)
+            {
+                doc.Url = documentRespository.RefreshDownloadUrl(doc.Url);
+            }
             return Ok(result);
         }
 

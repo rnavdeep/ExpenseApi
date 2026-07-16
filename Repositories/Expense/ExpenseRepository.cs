@@ -296,7 +296,7 @@ namespace Expense.API.Repositories.Expense
             {
                 filters.Add(filterBy);
             }
-            var query =  queryBuilder.BuildQuery(pagination, filters, sortFilter);
+            var query =  queryBuilder.BuildQuery(pagination, filters, sortFilter).Include(e => e.CreatedBy);
             var temp = await query.ToListAsync();
             //query = query.Where(q => q.CreatedById.Equals(user.Id));
             var result = await query

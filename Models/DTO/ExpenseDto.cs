@@ -14,6 +14,11 @@ namespace Expense.API.Models.DTO
         public decimal Amount { get; set; }
         public string CreatedAt { get; set; }
         public decimal ScannedReceiptsTotal { get; set; }
+        /// <summary>
+        /// Username of the expense owner. Populated only when the CreatedBy
+        /// navigation is included by the query (e.g. shared-expenses listing).
+        /// </summary>
+        public string? SharedByUsername { get; set; }
         //public ICollection<Document> Documents { get; set; }
         //public List<string> UserIds { get; set; }
     }
