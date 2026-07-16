@@ -20,6 +20,8 @@ namespace Expense.API.Data
         public DbSet<FriendRequest> FriendRequests { get; set; }
         public DbSet<Settlement> Settlements { get; set; }
         public DbSet<Budget> Budgets { get; set; }
+        public DbSet<LineItem> LineItems { get; set; }
+        public DbSet<LineItemAssignment> LineItemAssignments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -85,6 +87,33 @@ namespace Expense.API.Data
                 .HasOne(b => b.User)
                 .WithMany()
                 .HasForeignKey(b => b.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<LineItem>()
+                .HasOne(li => li.DocumentJobResult)
+                .WithMany()
+                .HasForeignKey(li => li.DocumentJobResultId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LineItem>()
+                .HasOne(li => li.Expense)
+                .WithMany()
+                .HasForeignKey(li => li.ExpenseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<LineItemAssignment>()
+                .HasKey(la => new { la.LineItemId, la.UserId });
+
+            modelBuilder.Entity<LineItemAssignment>()
+                .HasOne(la => la.LineItem)
+                .WithMany(li => li.Assignments)
+                .HasForeignKey(la => la.LineItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LineItemAssignment>()
+                .HasOne(la => la.User)
+                .WithMany()
+                .HasForeignKey(la => la.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

@@ -275,7 +275,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
                     expenseDoc.LineItems = response.ExpenseDocuments
                         .SelectMany(expDoc => expDoc.LineItemGroups)
                         .SelectMany(group => group.LineItems)
-                        .Select(item => new Models.Domain.LineItem
+                        .Select(item => new Models.Domain.TextractLineItemFields
                         {
                             Description = item.LineItemExpenseFields
                                             .FirstOrDefault(f => f.Type.Text == "ITEM")?.ValueDetection?.Text,

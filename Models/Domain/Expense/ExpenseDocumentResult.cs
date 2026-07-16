@@ -4,12 +4,12 @@
     {
         public string DocumentName { get; set; }
         public List<ExpenseSummaryField> SummaryFields { get; set; }
-        public List<LineItem> LineItems { get; set; }
+        public List<TextractLineItemFields> LineItems { get; set; }
 
         public ExpenseDocumentResult()
         {
             SummaryFields = new List<ExpenseSummaryField>();
-            LineItems = new List<LineItem>();
+            LineItems = new List<TextractLineItemFields>();
         }
     }
 
@@ -19,7 +19,7 @@
         public string? FieldValue { get; set; }
     }
 
-    public class LineItem
+    public class TextractLineItemFields
     {
         public string? Description { get; set; }
         public string? Quantity { get; set; }
