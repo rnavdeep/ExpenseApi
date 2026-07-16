@@ -94,6 +94,71 @@ POST /api/Expense/{id}/addUser?userId=   (existing endpoint; after B7 friend-gat
      Existing checks (user/expense exist, not already assigned) are unchanged and still apply.
 ```
 
+## Line-item assignment (phases B8–B10 / frontend F8–F10)
+
+Feature: assign each OCR'd receipt line item to one or more friends; the expense's "shared
+with" list and per-person owed amounts are derived automatically from those assignments,
+replacing the manual add/remove/share-% flow for any expense that has at least one scanned
+line item. Design reference: `docs/Line Item User Assignment (standalone).html` in
+`rnavdeep/expense-analyser` (a compressed dc-runtime wireframe bundle — the real markup is
+JSON-encoded inside a `<script type="__bundler/template">` tag; extract and `json.loads()` it
+to view). Confirmed product rules:
+
+- Every line item always has ≥1 assignee (creator counts). Removing an assignee is only
+  allowed when ≥2 remain — no separate "creator" special case is needed, the ≥2 check alone
+  satisfies "creator only removable once someone else is on the item".
+- Split is even per line item only — no custom %/amount per person.
+- Only accepted friends are assignable (same predicate as B7).
+- Bulk "assign all items to X" is additive only — it never removes anyone already assigned to
+  any item.
+- Per-person totals = sum of that person's even split across every line item they're on.
+  If `expense.Amount` exceeds the sum of line-item amounts (tax/tip/manual top-ups), that
+  remainder is left unassigned — do not redistribute it. Shares need not sum to 100% of
+  `expense.Amount`.
+- When an expense that already has manually-added `ExpenseUser` rows gets its first `LineItem`
+  rows (first successful scan), those existing users are carried forward as the default
+  assignees on every new line item — not reset to creator-only.
+- Expenses with zero `LineItem` rows (nothing ever scanned) are entirely unaffected: the
+  existing addUser/removeUser/updateShares flow keeps working exactly as today.
+
+New API contracts (fixed — must match the frontend plan verbatim):
+
+```
+GET  /api/Expense/{expenseId}/doc/{docId}   (existing endpoint; response gains `lineItems`)
+  → existing DocumentResultDto fields, unchanged, plus:
+     lineItems: LineItemDto[]
+     LineItemDto { id: string(Guid), description: string|null, quantity: string|null,
+                   amount: number|null, sortOrder: number, assignees: LineItemAssigneeDto[] }
+     LineItemAssigneeDto { userId: string(Guid), userName: string }
+
+PUT  /api/Expense/lineItem/{lineItemId}/assignees/{userId}
+  → 200 LineItemDto (the item, with its updated assignees)
+     400 when {userId} != caller and has no accepted FriendRequest with the caller (same
+         predicate as B7); 400 when {lineItemId} not found.
+
+DELETE /api/Expense/lineItem/{lineItemId}/assignees/{userId}
+  → 200 LineItemDto
+     400 "Cannot remove the last remaining assignee from a line item." when this would leave
+         zero assignees; 400 when the assignment doesn't exist.
+
+PUT  /api/Expense/{expenseId}/lineItems/assignAll/{userId}
+  → 200 LineItemDto[]  (every line item on the expense; {userId} added to any it wasn't
+       already on — existing assignees on every item are left untouched)
+     400 when {userId} has no accepted FriendRequest with the caller.
+
+GET  /api/Expense/{id}/getAssignedUsers   (existing endpoint; ExpenseUserDto gains two fields)
+  → ExpenseUserDto[] { ...existing fields, itemsAssignedCount: int?, totalItemsCount: int? }
+     Both null when the expense has zero LineItem rows; otherwise itemsAssignedCount = how many
+     of the expense's line items this user is on, totalItemsCount = the expense's total line
+     item count.
+
+POST /api/Expense/{id}/addUser?userId=        (existing endpoints; after B9 all three reject
+DELETE /api/Expense/{id}/removeUser/{userId}   with 400 "This expense's sharing is managed by
+PUT  /api/Expense/{id}/updateShares            line-item assignment — use the Document Results
+                                                page instead." when the target expense has any
+                                                LineItem row)
+```
+
 ## Codebase orientation (read these before coding)
 
 - Domain models: `Models/Domain/...` (see `Models/Domain/FriendRequest/FriendRequest.cs`,
@@ -113,6 +178,9 @@ POST /api/Expense/{id}/addUser?userId=   (existing endpoint; after B7 friend-gat
   `IntegrationTestBase` gives `RegisterAndLoginAsync`, `CreateBusinessUserAsync`, `WithDbAsync`,
   `Unique`; deterministic seeding via `Infrastructure/SeedData.cs` (`AddExpense`, `AddShare`,
   `AddReceipt`). Exemplar suite: `DashboardTests.cs`.
+- Line-item/OCR pipeline: `Repositories/ExpenseAnalysis/ExpenseAnalysis.cs` (`StoreResults`,
+  `BuildLineItemJson`, `UpdateExpenseUsers`) and `Models/Domain/Document/DocumentJobResult.cs`
+  (`ResultLineItems`/`ColumnNames` JSON blobs, populated once a Textract job succeeds).
 
 ## Phase checklist
 
@@ -123,6 +191,9 @@ POST /api/Expense/{id}/addUser?userId=   (existing endpoint; after B7 friend-gat
 - [x] **B5 — Budget threshold alerts**
 - [x] **B6 — Expose `userId` on `GET /api/Friends/getFriends`**
 - [x] **B7 — Require friendship before adding a user to an expense split**
+- [ ] **B8 — LineItem/LineItemAssignment schema**
+- [ ] **B9 — Line-item assignment repository, business rules, StoreResults integration**
+- [ ] **B10 — Controller endpoints + guard old manual-share endpoints**
 
 ---
 
@@ -252,6 +323,146 @@ the expense's creator — that's a separate, pre-existing gap this plan isn't ad
   is unchanged; adding a pending (not-yet-accepted) friend request → still 400.
 
 Acceptance: quality gates pass; no change to `CreateExpenseAsync`, `Put`, or any other endpoint.
+
+### B8 — LineItem/LineItemAssignment schema
+
+Context: today `DocumentJobResult.ResultLineItems` is just a JSON string built from Textract's
+dynamic per-vendor fields — there is no per-row identity, so nothing can be assigned to a user.
+This phase adds the normalized, assignable layer underneath that JSON blob without touching the
+blob itself (the raw dynamic-column table on the frontend keeps working unchanged).
+
+- `Models/Domain/Document/LineItem.cs` — new entity: `Id (Guid)`, `DocumentJobResultId (Guid)` +
+  `DocumentJobResult` nav, `ExpenseId (Guid)` + `Expense` nav (denormalized onto the line item so
+  a multi-document expense's items can be queried/aggregated in one pass without joining through
+  `DocumentJobResult`), `SortOrder (int)`, `Description (string?)`, `Quantity (string?)`,
+  `Amount (decimal?)`, `RawFieldsJson (string)` (the full raw per-vendor Textract field dump for
+  that row, so nothing observable today is lost).
+  - **Naming collision**: there's already a transient (non-EF) `Models.Domain.LineItem` POCO
+    (`Description`/`Quantity`/`Amount` all `string?`) used only in
+    `ExpenseAnalysis.StartExpenseExtractAsync` (~line 278) to shape the ad-hoc Textract response
+    returned by that method. Rename that one to `TextractLineItemFields` before adding the new
+    persisted entity — grep for `Models.Domain.LineItem` first (today it's only that one file)
+    and update `ExpenseDocumentResult.LineItems`'s declared type to match.
+- `Models/Domain/Document/LineItemAssignment.cs` — join entity, composite PK
+  `(LineItemId, UserId)`, `LineItem` nav (FK cascade), `User` nav (FK restrict, mirroring how
+  `ExpenseUser`'s `User` FK is configured), `AssignedAt (DateTime, default UtcNow)`.
+- `Data/UserDocumentsDbContext.cs`: add `DbSet<LineItem> LineItems` and
+  `DbSet<LineItemAssignment> LineItemAssignments`; in `OnModelCreating`, configure
+  `LineItemAssignment`'s composite key + both FKs (mirror the existing `ExpenseUser` block,
+  lines ~27-38) and `LineItem`'s FK to `DocumentJobResult` (cascade) and to `Expense` (restrict,
+  same style as `ExpenseModel.CreatedBy`'s FK).
+- EF migration: `dotnet ef migrations add AddLineItemsAndAssignments --context UserDocumentsDbContext`,
+  following the two-table `CreateTable`/`ForeignKey`/`CreateIndex` pattern in
+  `Migrations/UserDocumentsDb/20260710160900_AddBudgets.cs` — add indexes on
+  `LineItems.DocumentJobResultId`, `LineItems.ExpenseId`, and `LineItemAssignments.UserId`.
+- Matching hand-written SQL script `ExpenseAnalyserDbScripts/15-line-items-and-assignments.sql`
+  (next sequential number after `14-add-expense-allowreceipts.sql`), following
+  `12-friend-requests.sql`'s `IF NOT EXISTS` idempotent-guard style.
+- No behavior change in this phase — `ExpenseAnalysis.StoreResults` does not populate the new
+  tables yet (that's B9). Safe to merge standalone.
+
+Tests: none beyond confirming `dotnet build` and the full existing suite still pass unmodified
+(schema-only phase — check `Tests/Expense.API.IntegrationTests/Infrastructure` for however the
+test database gets its schema applied, e.g. `Migrate()`/`EnsureCreated()`, and confirm the new
+tables come up cleanly there too).
+
+Acceptance: quality gates pass; no repository/controller/DTO behavior changed.
+
+### B9 — Line-item assignment repository, business rules, StoreResults integration
+
+Context: this phase makes assignments real — the write path, the derivation of `ExpenseUser`
+shares from assignments, and the first-scan carry-forward behavior — but does not yet expose any
+of it over HTTP (that's B10), so it can be developed/tested in isolation against the repository
+layer.
+
+- New DTOs `Models/DTO/LineItemDto.cs`, `Models/DTO/LineItemAssigneeDto.cs` per the contract
+  above. Add `List<LineItemDto> LineItems { get; set; } = new();` to `Models/DTO/DocumentResultDto.cs`.
+- `Mappings/AutomapperProfiles.cs`: `CreateMap<LineItem, LineItemDto>().ForMember(dest => dest.Assignees, opt => opt.MapFrom(src => src.Assignments.Select(a => a.User)));`,
+  `CreateMap<User, LineItemAssigneeDto>();`, and extend the existing
+  `CreateMap<DocumentJobResult, DocumentResultDto>()` with
+  `.ForMember(dest => dest.LineItems, opt => opt.MapFrom(src => src.LineItems))`.
+- `Repositories/Expense/IExpenseRepository.cs` + `ExpenseRepository.cs`, new methods:
+  - `AssignUserToLineItemAsync(Guid lineItemId, Guid userId)` → `LineItem`: friendship check
+    copied from `CreateExpenseUserAsync`'s inline `FriendRequests` query (~lines 78-86, skipped
+    when `userId` equals the caller), no-op if the assignment already exists, else insert
+    `LineItemAssignment`, call `RecomputeExpenseUsersFromAssignmentsAsync` for the item's
+    `ExpenseId`, return the item with `Assignments`/`User` loaded.
+  - `RemoveUserFromLineItemAsync(Guid lineItemId, Guid userId)` → `LineItem`: throw
+    `new Exception("Cannot remove the last remaining assignee from a line item.")` when current
+    `Assignments.Count <= 1` (mirrors `RemoveExpenseUserAsync`'s last-user guard, ~line 138),
+    else remove, recompute, return the item.
+  - `AssignUserToAllLineItemsAsync(Guid expenseId, Guid userId)` → `List<LineItem>`: one
+    friendship check up front (single user, many items), then insert a `LineItemAssignment` for
+    every `LineItem` on the expense that `userId` isn't already on (additive only — never touch
+    other users' assignments), recompute once at the end, return all items for the expense.
+  - `RecomputeExpenseUsersFromAssignmentsAsync(Guid expenseId)`: load every `LineItem` where
+    `ExpenseId == expenseId` (across all the expense's documents) with `Assignments`; per user,
+    `perUserDollar += lineItem.Amount / lineItem.Assignments.Count` for each item they're on
+    (skip items with null `Amount` or zero assignees defensively); `UserAmount = Math.Round(perUserDollar, 2)`;
+    `UserShare = expense.Amount > 0 ? perUserDollar / (double)expense.Amount : 0` — per the
+    remainder rule, do **not** redistribute any gap between `expense.Amount` and the itemized
+    sum. Upsert `ExpenseUser` rows to exactly the set of users with ≥1 assignment anywhere on the
+    expense (add missing rows, update existing, remove rows for users with zero assignments
+    left) — this keeps `ExpenseUser` as the materialized read model so `GetOutstandingBalancesAsync`/
+    `GetBalanceDetailAsync`/`GetAssignUsers` need no changes in this phase.
+- `Repositories/ExpenseAnalysis/ExpenseAnalysis.cs`, `StoreResults`: alongside the existing
+  `BuildLineItemJson`/`ResultLineItems` population (leave that untouched, it still feeds the raw
+  dynamic-column table), parse that same line-item list and persist one `LineItem` row per entry
+  (`Description` from the `"ITEM"` field, `Quantity` from whichever field the vendor uses,
+  `Amount` parsed from the `"PRICE"`-style field using the same numeric-extraction
+  `Regex.Replace(fieldValue, @"[^\d.-]", "")` pattern already used in `GetTotal`), with
+  `SortOrder` = the entry's index in the list. For each newly created `LineItem`, seed its
+  initial `LineItemAssignment`s from whatever `ExpenseUser` rows already exist for
+  `documentJobResult.ExpenseId` (carry-forward); if none exist yet, default to
+  `documentJobResult.CreatedById` only. Replace the unconditional `UpdateExpenseUsers(documentJobResult.ExpenseId)`
+  call at the end of `StoreResults` with: call `RecomputeExpenseUsersFromAssignmentsAsync` when
+  the expense now has ≥1 `LineItem`, otherwise keep calling the old `UpdateExpenseUsers` rescale
+  logic (expenses with zero line items are unaffected by this feature).
+- Tests: extend `Tests/Expense.API.IntegrationTests/Infrastructure/SeedData.cs` with an
+  `AddLineItem(expenseId, documentJobResultId, description, amount, params Guid[] assigneeUserIds)`
+  helper (style of `AddExpense`/`AddShare`/`AddReceipt`). New suite
+  `Tests/Expense.API.IntegrationTests/LineItemAssignmentTests.cs`: assigning a non-friend → 400
+  exact message; assigning an accepted friend → 200 and `RecomputeExpenseUsersFromAssignmentsAsync`
+  produces correct `ExpenseUser.UserAmount` for a 2-item/2-person even split; removing the last
+  assignee → 400 exact message; bulk-assign is additive (other users' assignments on other items
+  untouched); first-scan carry-forward (seed an expense with a pre-existing manually-added
+  `ExpenseUser`, simulate `StoreResults` creating `LineItem`s, assert that user is on every new
+  item rather than reset to creator-only). Confirm `GetOutstandingBalancesAsync`/
+  `GetBalanceDetailAsync` tests still pass unmodified (regression check that `ExpenseUser`'s
+  shape/semantics as read by those methods hasn't changed).
+
+Acceptance: quality gates pass; `addUser`/`removeUser`/`updateShares` and their existing tests
+are completely unaffected in this phase (the guard rejecting them on line-item expenses is B10).
+
+### B10 — Controller endpoints + guard old manual-share endpoints
+
+- `Repositories/Expense/ExpenseRepository.cs`, `GetDocResult`: eager-load the new relations
+  (`.Include(d => d.LineItems).ThenInclude(li => li.Assignments).ThenInclude(a => a.User)`) so
+  the B9 AutoMapper map has data to project into `DocumentResultDto.LineItems`.
+- `Controllers/ExpenseController.cs`, same file/conventions as the existing `addUser`/
+  `removeUser` actions, new endpoints:
+  - `[HttpPut("lineItem/{lineItemId}/assignees/{userId}")]` → `AssignUserToLineItemAsync`, maps
+    result to `LineItemDto`, 200/400 per contract.
+  - `[HttpDelete("lineItem/{lineItemId}/assignees/{userId}")]` → `RemoveUserFromLineItemAsync`.
+  - `[HttpPut("{expenseId}/lineItems/assignAll/{userId}")]` → `AssignUserToAllLineItemsAsync`,
+    maps to `List<LineItemDto>`.
+- Extend `GetAssignUsers` (`ExpenseRepository`) to also compute `ItemsAssignedCount`/
+  `TotalItemsCount` per returned `ExpenseUser` — a single query against `LineItemAssignments`/
+  `LineItems` for the expense (both null when the expense has zero `LineItem` rows). Add the
+  matching fields to `Models/DTO/ExpenseUserDto.cs` and the existing
+  `CreateMap<ExpenseUser, ExpenseUserDto>()` map.
+- Guard `CreateExpenseUserAsync`, `RemoveExpenseUserAsync`, `UpdateExpenseUserSharesAsync`: at
+  the top of each, `if (await userDocumentsDbContext.LineItems.AnyAsync(li => li.ExpenseId == expenseId))`
+  → `throw new Exception("This expense's sharing is managed by line-item assignment — use the Document Results page instead.");`
+  before any other logic.
+- Tests: extend `LineItemAssignmentTests.cs` (or add `ExpenseControllerLineItemTests.cs`) for the
+  three new endpoints end-to-end (route → repository → DB), the N-of-M fields appearing
+  correctly on `getAssignedUsers`, and — critically — that `addUser`/`removeUser`/`updateShares`
+  now 400 with the exact guard message once an expense has any `LineItem`, while the existing
+  suite covering those three endpoints on expenses with none still passes completely unchanged.
+
+Acceptance: quality gates pass; manual golden path works end-to-end against a real scanned
+expense (assign a line item → `getAssignedUsers` reflects it with correct N-of-M and amount).
 
 ---
 
