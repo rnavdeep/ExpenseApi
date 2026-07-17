@@ -191,7 +191,7 @@ PUT  /api/Expense/{id}/updateShares            line-item assignment — use the 
 - [x] **B5 — Budget threshold alerts**
 - [x] **B6 — Expose `userId` on `GET /api/Friends/getFriends`**
 - [x] **B7 — Require friendship before adding a user to an expense split**
-- [ ] **B8 — LineItem/LineItemAssignment schema**
+- [x] **B8 — LineItem/LineItemAssignment schema**
 - [ ] **B9 — Line-item assignment repository, business rules, StoreResults integration**
 - [ ] **B10 — Controller endpoints + guard old manual-share endpoints**
 
