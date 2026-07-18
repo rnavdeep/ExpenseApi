@@ -794,6 +794,187 @@ namespace Expense.API.Repositories.Expense
                 await textractNotification.Clients.User(user.Username).SendAsync("TextractNotification", message);
             }
         }
+
+        // ----- Line-item assignment -----
+
+        /// <summary>
+        /// Throws when userId isn't the caller and has no accepted FriendRequest with the caller (same
+        /// predicate as CreateExpenseUserAsync's inline friendship check).
+        /// </summary>
+        private async Task EnsureFriendsWithCallerAsync(Guid callerId, Guid userId)
+        {
+            if (userId == callerId)
+            {
+                return;
+            }
+
+            var areFriends = await userDocumentsDbContext.FriendRequests.AnyAsync(
+                fr => ((fr.SentByUserId == callerId && fr.SentToUserId == userId)
+                       || (fr.SentByUserId == userId && fr.SentToUserId == callerId))
+                      && fr.IsAccepted == 1);
+
+            if (!areFriends)
+            {
+                throw new Exception("Users must be friends before sharing an expense.");
+            }
+        }
+
+        private Task<LineItem> GetLineItemWithAssigneesAsync(Guid lineItemId)
+        {
+            return userDocumentsDbContext.LineItems
+                .Include(li => li.Assignments).ThenInclude(a => a.User)
+                .FirstAsync(li => li.Id == lineItemId);
+        }
+
+        public async Task<LineItem> AssignUserToLineItemAsync(Guid lineItemId, Guid userId)
+        {
+            var lineItem = await userDocumentsDbContext.LineItems
+                .Include(li => li.Assignments)
+                .FirstOrDefaultAsync(li => li.Id == lineItemId);
+            if (lineItem == null)
+            {
+                throw new Exception("Line item not found.");
+            }
+
+            var currentUser = await GetCurrentUserAsync();
+            await EnsureFriendsWithCallerAsync(currentUser.Id, userId);
+
+            if (!lineItem.Assignments.Any(a => a.UserId == userId))
+            {
+                await userDocumentsDbContext.LineItemAssignments.AddAsync(new LineItemAssignment
+                {
+                    LineItemId = lineItemId,
+                    UserId = userId
+                });
+                await userDocumentsDbContext.SaveChangesAsync();
+                await RecomputeExpenseUsersFromAssignmentsAsync(lineItem.ExpenseId);
+            }
+
+            return await GetLineItemWithAssigneesAsync(lineItemId);
+        }
+
+        public async Task<LineItem> RemoveUserFromLineItemAsync(Guid lineItemId, Guid userId)
+        {
+            var lineItem = await userDocumentsDbContext.LineItems
+                .Include(li => li.Assignments)
+                .FirstOrDefaultAsync(li => li.Id == lineItemId);
+            if (lineItem == null)
+            {
+                throw new Exception("Line item not found.");
+            }
+
+            var assignment = lineItem.Assignments.FirstOrDefault(a => a.UserId == userId);
+            if (assignment == null)
+            {
+                throw new Exception("User is not assigned to this line item.");
+            }
+
+            if (lineItem.Assignments.Count <= 1)
+            {
+                throw new Exception("Cannot remove the last remaining assignee from a line item.");
+            }
+
+            userDocumentsDbContext.LineItemAssignments.Remove(assignment);
+            await userDocumentsDbContext.SaveChangesAsync();
+            await RecomputeExpenseUsersFromAssignmentsAsync(lineItem.ExpenseId);
+
+            return await GetLineItemWithAssigneesAsync(lineItemId);
+        }
+
+        public async Task<List<LineItem>> AssignUserToAllLineItemsAsync(Guid expenseId, Guid userId)
+        {
+            var lineItems = await userDocumentsDbContext.LineItems
+                .Where(li => li.ExpenseId == expenseId)
+                .Include(li => li.Assignments)
+                .ToListAsync();
+
+            var currentUser = await GetCurrentUserAsync();
+            await EnsureFriendsWithCallerAsync(currentUser.Id, userId);
+
+            var itemsMissingUser = lineItems.Where(li => !li.Assignments.Any(a => a.UserId == userId)).ToList();
+            if (itemsMissingUser.Count > 0)
+            {
+                foreach (var lineItem in itemsMissingUser)
+                {
+                    await userDocumentsDbContext.LineItemAssignments.AddAsync(new LineItemAssignment
+                    {
+                        LineItemId = lineItem.Id,
+                        UserId = userId
+                    });
+                }
+                await userDocumentsDbContext.SaveChangesAsync();
+                await RecomputeExpenseUsersFromAssignmentsAsync(expenseId);
+            }
+
+            return await userDocumentsDbContext.LineItems
+                .Where(li => li.ExpenseId == expenseId)
+                .Include(li => li.Assignments).ThenInclude(a => a.User)
+                .ToListAsync();
+        }
+
+        public async Task RecomputeExpenseUsersFromAssignmentsAsync(Guid expenseId)
+        {
+            var expense = await userDocumentsDbContext.Expenses.FirstOrDefaultAsync(e => e.Id == expenseId);
+            if (expense == null)
+            {
+                return;
+            }
+
+            var lineItems = await userDocumentsDbContext.LineItems
+                .Where(li => li.ExpenseId == expenseId)
+                .Include(li => li.Assignments)
+                .ToListAsync();
+
+            // Per-person totals: sum of that person's even split across every line item they're on. Any
+            // remainder between expense.Amount and the itemized sum (tax/tip/manual top-ups) is left
+            // unassigned, never redistributed.
+            var perUserDollar = new Dictionary<Guid, double>();
+            foreach (var lineItem in lineItems)
+            {
+                if (lineItem.Amount == null || lineItem.Assignments == null || lineItem.Assignments.Count == 0)
+                {
+                    continue;
+                }
+
+                var perAssigneeShare = (double)lineItem.Amount.Value / lineItem.Assignments.Count;
+                foreach (var assignment in lineItem.Assignments)
+                {
+                    perUserDollar[assignment.UserId] = perUserDollar.GetValueOrDefault(assignment.UserId) + perAssigneeShare;
+                }
+            }
+
+            var existingExpenseUsers = await userDocumentsDbContext.ExpenseUsers
+                .Where(eu => eu.ExpenseId == expenseId)
+                .ToListAsync();
+
+            foreach (var (assignedUserId, dollarAmount) in perUserDollar)
+            {
+                var userAmount = Math.Round(dollarAmount, 2);
+                var userShare = expense.Amount > 0 ? dollarAmount / (double)expense.Amount : 0;
+
+                var existingExpenseUser = existingExpenseUsers.FirstOrDefault(eu => eu.UserId == assignedUserId);
+                if (existingExpenseUser != null)
+                {
+                    existingExpenseUser.UserAmount = userAmount;
+                    existingExpenseUser.UserShare = userShare;
+                }
+                else
+                {
+                    await userDocumentsDbContext.ExpenseUsers.AddAsync(
+                        new ExpenseUser(expenseId, assignedUserId, userAmount) { UserShare = userShare });
+                }
+            }
+
+            var expenseUsersToRemove = existingExpenseUsers
+                .Where(eu => !perUserDollar.ContainsKey(eu.UserId))
+                .ToList();
+            if (expenseUsersToRemove.Count > 0)
+            {
+                userDocumentsDbContext.ExpenseUsers.RemoveRange(expenseUsersToRemove);
+            }
+
+            await userDocumentsDbContext.SaveChangesAsync();
+        }
     }
 }
 

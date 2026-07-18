@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 namespace Expense.API.Models.DTO
 {
 	public class DocumentResultDto
@@ -7,6 +8,11 @@ namespace Expense.API.Models.DTO
 		{
 		}
         public Guid Id { get; set; }
+
+        /// <summary>
+        /// Normalized, assignable line items derived from this document's scan.
+        /// </summary>
+        public List<LineItemDto> LineItems { get; set; } = new();
 
         /// <summary>
         /// Store total extracted from documents from summaryFields

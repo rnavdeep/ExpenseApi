@@ -135,6 +135,32 @@ namespace Expense.API.Repositories.Expense
         /// </summary>
         public Task<BalanceDetailDto?> GetBalanceDetailAsync(Guid counterpartyId);
 
+        /// <summary>
+        /// Assign a user to a line item (friendship-gated, same as CreateExpenseUserAsync). No-op if
+        /// already assigned. Recomputes the expense's ExpenseUser shares from all assignments.
+        /// </summary>
+        public Task<LineItem> AssignUserToLineItemAsync(Guid lineItemId, Guid userId);
+
+        /// <summary>
+        /// Remove a user from a line item. Throws when this would leave zero assignees. Recomputes the
+        /// expense's ExpenseUser shares from all assignments.
+        /// </summary>
+        public Task<LineItem> RemoveUserFromLineItemAsync(Guid lineItemId, Guid userId);
+
+        /// <summary>
+        /// Additively assign a user to every line item on an expense that they aren't already on
+        /// (friendship-gated). Never removes existing assignees. Recomputes the expense's ExpenseUser
+        /// shares from all assignments.
+        /// </summary>
+        public Task<List<LineItem>> AssignUserToAllLineItemsAsync(Guid expenseId, Guid userId);
+
+        /// <summary>
+        /// Rebuild the expense's ExpenseUser rows (the materialized read model used by balances/dashboard)
+        /// from its current LineItemAssignments: each user's UserAmount is the sum of their even split
+        /// across every line item they're on, with no redistribution of any unassigned remainder.
+        /// </summary>
+        public Task RecomputeExpenseUsersFromAssignmentsAsync(Guid expenseId);
+
     }
 }
 

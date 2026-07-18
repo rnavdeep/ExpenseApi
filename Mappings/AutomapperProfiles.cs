@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Text.Json;
 using AutoMapper;
 using Expense.API.Models.Domain;
@@ -26,7 +27,11 @@ namespace Expense.API.Mappings
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.Id.ToString()))
                 .ForMember(dest => dest.Name, opt => opt.MapFrom(src => src.FileName.ToString()))
                 .ForMember(dest => dest.Url, opt => opt.MapFrom(src => src.S3Url.ToString()));
-            CreateMap<DocumentJobResult, DocumentResultDto>();
+            CreateMap<DocumentJobResult, DocumentResultDto>()
+                .ForMember(dest => dest.LineItems, opt => opt.MapFrom(src => src.LineItems));
+            CreateMap<LineItem, LineItemDto>()
+                .ForMember(dest => dest.Assignees, opt => opt.MapFrom(src => src.Assignments.Select(a => a.User)));
+            CreateMap<User, LineItemAssigneeDto>();
             CreateMap<Notification, NotificationDto>();
             CreateMap<ExpenseUser, ExpenseUserDto>()
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User.Username))

@@ -72,4 +72,28 @@ public static class SeedData
         db.DocumentJobResults.Add(jobResult);
         return jobResult;
     }
+
+    /// <summary>A normalized, assignable line item with its initial assignees.</summary>
+    public static LineItem AddLineItem(UserDocumentsDbContext db, Guid expenseId, Guid documentJobResultId,
+        string description, decimal amount, params Guid[] assigneeUserIds)
+    {
+        var lineItem = new LineItem
+        {
+            Id = Guid.NewGuid(),
+            DocumentJobResultId = documentJobResultId,
+            ExpenseId = expenseId,
+            SortOrder = 0,
+            Description = description,
+            Amount = amount,
+            RawFieldsJson = "{}"
+        };
+        db.LineItems.Add(lineItem);
+
+        foreach (var userId in assigneeUserIds)
+        {
+            db.LineItemAssignments.Add(new LineItemAssignment { LineItemId = lineItem.Id, UserId = userId });
+        }
+
+        return lineItem;
+    }
 }

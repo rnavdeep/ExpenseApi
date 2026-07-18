@@ -1,8 +1,11 @@
 using System.Net.Http.Json;
+using System.Security.Claims;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
 using Expense.API.Models.DTO;
+using Expense.API.Repositories.Expense;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -85,6 +88,27 @@ public abstract class IntegrationTestBase
             await db.SaveChangesAsync();
         });
         return user;
+    }
+
+    /// <summary>
+    /// Runs an action against a scoped IExpenseRepository as if `caller` were the authenticated user
+    /// (NameIdentifier claim = caller's username, the same claim repository methods resolve the current
+    /// user from). For repository methods with no HTTP endpoint yet to drive them through.
+    /// </summary>
+    protected async Task<T> WithExpenseRepositoryAsync<T>(TestUser caller, Func<IExpenseRepository, Task<T>> action)
+    {
+        using var scope = Factory.Services.CreateScope();
+        var httpContextAccessor = scope.ServiceProvider.GetRequiredService<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, caller.UserName)
+            }))
+        };
+
+        var repository = scope.ServiceProvider.GetRequiredService<IExpenseRepository>();
+        return await action(repository);
     }
 
     /// <summary>Sends a friend request from sender to recipient through the real API and accepts it.</summary>

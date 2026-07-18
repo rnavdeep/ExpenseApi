@@ -91,7 +91,7 @@ namespace Expense.API.Data
 
             modelBuilder.Entity<LineItem>()
                 .HasOne(li => li.DocumentJobResult)
-                .WithMany()
+                .WithMany(djr => djr.LineItems)
                 .HasForeignKey(li => li.DocumentJobResultId)
                 .OnDelete(DeleteBehavior.Cascade);
 
