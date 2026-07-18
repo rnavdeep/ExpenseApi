@@ -300,6 +300,57 @@ namespace Expense.API.Controllers
             }
         }
 
+        // PUT api/Expense/lineItem/{lineItemId}/assignees/{userId}
+        [HttpPut]
+        [Route("lineItem/{lineItemId}/assignees/{userId}")]
+        public async Task<IActionResult> PutLineItemAssignee(Guid lineItemId, Guid userId)
+        {
+            try
+            {
+                var result = await expenseRepository.AssignUserToLineItemAsync(lineItemId, userId);
+                var resultDto = mapper.Map<LineItemDto>(result);
+                return Ok(resultDto);
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+        }
+
+        // DELETE api/Expense/lineItem/{lineItemId}/assignees/{userId}
+        [HttpDelete]
+        [Route("lineItem/{lineItemId}/assignees/{userId}")]
+        public async Task<IActionResult> DeleteLineItemAssignee(Guid lineItemId, Guid userId)
+        {
+            try
+            {
+                var result = await expenseRepository.RemoveUserFromLineItemAsync(lineItemId, userId);
+                var resultDto = mapper.Map<LineItemDto>(result);
+                return Ok(resultDto);
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+        }
+
+        // PUT api/Expense/{expenseId}/lineItems/assignAll/{userId}
+        [HttpPut]
+        [Route("{expenseId}/lineItems/assignAll/{userId}")]
+        public async Task<IActionResult> PutAssignAllLineItems(Guid expenseId, Guid userId)
+        {
+            try
+            {
+                var result = await expenseRepository.AssignUserToAllLineItemsAsync(expenseId, userId);
+                var resultDto = mapper.Map<List<LineItemDto>>(result);
+                return Ok(resultDto);
+            }
+            catch (Exception e)
+            {
+                return BadRequest(e.Message);
+            }
+        }
+
         // PUT api/values/5
         [HttpPut]
         [Route("{id}")]

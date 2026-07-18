@@ -193,7 +193,7 @@ PUT  /api/Expense/{id}/updateShares            line-item assignment — use the 
 - [x] **B7 — Require friendship before adding a user to an expense split**
 - [x] **B8 — LineItem/LineItemAssignment schema**
 - [x] **B9 — Line-item assignment repository, business rules, StoreResults integration**
-- [ ] **B10 — Controller endpoints + guard old manual-share endpoints**
+- [x] **B10 — Controller endpoints + guard old manual-share endpoints**
 
 ---
 

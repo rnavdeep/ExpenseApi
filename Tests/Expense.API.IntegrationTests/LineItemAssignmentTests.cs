@@ -12,11 +12,11 @@ using Xunit;
 namespace Expense.API.IntegrationTests;
 
 /// <summary>
-/// Exercises the line-item assignment business rules directly against IExpenseRepository (there is no
-/// HTTP surface yet - that's phase B10): friendship-gated assign/remove, additive bulk-assign, and the
-/// ExpenseUser recompute that derives per-person totals from assignments. Also exercises
-/// ExpenseAnalysis.StoreResults' first-scan carry-forward of existing ExpenseUser rows onto new
-/// LineItems.
+/// Exercises the line-item assignment business rules directly against IExpenseRepository (the HTTP
+/// surface added in phase B10 is covered end-to-end in ExpenseControllerLineItemTests): friendship-gated
+/// assign/remove, additive bulk-assign, and the ExpenseUser recompute that derives per-person totals
+/// from assignments. Also exercises ExpenseAnalysis.StoreResults' first-scan carry-forward of existing
+/// ExpenseUser rows onto new LineItems.
 /// </summary>
 public class LineItemAssignmentTests : IntegrationTestBase
 {

@@ -1,4 +1,6 @@
-﻿namespace Expense.API.Models.Domain
+﻿using System.ComponentModel.DataAnnotations.Schema;
+
+namespace Expense.API.Models.Domain
 {
 	public class ExpenseUser
 	{
@@ -38,6 +40,20 @@
         /// User Share Amount
         /// </summary>
         public double? UserAmount { get; set; }
+
+        /// <summary>
+        /// How many of the expense's line items this user is assigned to. Transient - populated by
+        /// GetAssignUsers, not persisted. Null when the expense has zero LineItem rows.
+        /// </summary>
+        [NotMapped]
+        public int? ItemsAssignedCount { get; set; }
+
+        /// <summary>
+        /// The expense's total line item count. Transient - populated by GetAssignUsers, not
+        /// persisted. Null when the expense has zero LineItem rows.
+        /// </summary>
+        [NotMapped]
+        public int? TotalItemsCount { get; set; }
     }
 }
 

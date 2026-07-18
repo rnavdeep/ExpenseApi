@@ -63,6 +63,11 @@ namespace Expense.API.Repositories.Expense
 
         public async Task<ExpenseUser> CreateExpenseUserAsync(ExpenseUser expenseUser)
         {
+            if (await userDocumentsDbContext.LineItems.AnyAsync(li => li.ExpenseId == expenseUser.ExpenseId))
+            {
+                throw new Exception("This expense's sharing is managed by line-item assignment — use the Document Results page instead.");
+            }
+
             // Check if the User Exists -- Just In Case
             var user = await userDocumentsDbContext.Users.FirstOrDefaultAsync(
                 user => user.Id.Equals(expenseUser.UserId));
@@ -118,6 +123,11 @@ namespace Expense.API.Repositories.Expense
 
         public async Task<List<ExpenseUser>> RemoveExpenseUserAsync(Guid expenseId, Guid userId)
         {
+            if (await userDocumentsDbContext.LineItems.AnyAsync(li => li.ExpenseId == expenseId))
+            {
+                throw new Exception("This expense's sharing is managed by line-item assignment — use the Document Results page instead.");
+            }
+
             var expense = await userDocumentsDbContext.Expenses.FirstOrDefaultAsync(
                 expense => expense.Id.Equals(expenseId));
             if (expense == null)
@@ -157,6 +167,11 @@ namespace Expense.API.Repositories.Expense
 
         public async Task<List<ExpenseUser>> UpdateExpenseUserSharesAsync(Guid expenseId, List<UpdateExpenseUserShareDto> shares)
         {
+            if (await userDocumentsDbContext.LineItems.AnyAsync(li => li.ExpenseId == expenseId))
+            {
+                throw new Exception("This expense's sharing is managed by line-item assignment — use the Document Results page instead.");
+            }
+
             var expense = await userDocumentsDbContext.Expenses.FirstOrDefaultAsync(
                 expense => expense.Id.Equals(expenseId));
             if (expense == null)
@@ -212,6 +227,26 @@ namespace Expense.API.Repositories.Expense
                         })
                     .ToListAsync();
 
+                // N-of-M line item assignment counts, left null when the expense has no LineItem rows.
+                var lineItems = await userDocumentsDbContext.LineItems
+                    .Where(li => li.ExpenseId == expenseId)
+                    .Select(li => li.Assignments.Select(a => a.UserId))
+                    .ToListAsync();
+
+                if (lineItems.Count > 0)
+                {
+                    var assignedCounts = lineItems
+                        .SelectMany(assigneeIds => assigneeIds)
+                        .GroupBy(userId => userId)
+                        .ToDictionary(g => g.Key, g => g.Count());
+
+                    foreach (var expUser in expenseUsers)
+                    {
+                        expUser.TotalItemsCount = lineItems.Count;
+                        expUser.ItemsAssignedCount = assignedCounts.GetValueOrDefault(expUser.UserId);
+                    }
+                }
+
                 return expenseUsers;
             }
             catch (Exception e)
@@ -251,7 +286,10 @@ namespace Expense.API.Repositories.Expense
 
         public async Task<DocumentJobResult?> GetDocResult(Guid expenseId, Guid docId)
         {
-            var result =  await userDocumentsDbContext.DocumentJobResults.Where(doc => doc.ExpenseId.Equals(expenseId) && doc.DocumentId.Equals(docId)).FirstOrDefaultAsync();
+            var result = await userDocumentsDbContext.DocumentJobResults
+                .Include(d => d.LineItems).ThenInclude(li => li.Assignments).ThenInclude(a => a.User)
+                .Where(doc => doc.ExpenseId.Equals(expenseId) && doc.DocumentId.Equals(docId))
+                .FirstOrDefaultAsync();
             return result;
         }
 

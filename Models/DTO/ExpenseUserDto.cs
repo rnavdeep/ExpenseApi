@@ -30,6 +30,17 @@ namespace Expense.API.Models.DTO
         /// Name or details of the associated User.
         /// </summary>
         public string UserName { get; set; }
+
+        /// <summary>
+        /// How many of the expense's line items this user is assigned to. Null when the expense has
+        /// zero LineItem rows.
+        /// </summary>
+        public int? ItemsAssignedCount { get; set; }
+
+        /// <summary>
+        /// The expense's total line item count. Null when the expense has zero LineItem rows.
+        /// </summary>
+        public int? TotalItemsCount { get; set; }
     }
 }
 

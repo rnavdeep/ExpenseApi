@@ -31,7 +31,8 @@ namespace Expense.API.Mappings
                 .ForMember(dest => dest.LineItems, opt => opt.MapFrom(src => src.LineItems));
             CreateMap<LineItem, LineItemDto>()
                 .ForMember(dest => dest.Assignees, opt => opt.MapFrom(src => src.Assignments.Select(a => a.User)));
-            CreateMap<User, LineItemAssigneeDto>();
+            CreateMap<User, LineItemAssigneeDto>()
+                .ForMember(dest => dest.UserId, opt => opt.MapFrom(src => src.Id));
             CreateMap<Notification, NotificationDto>();
             CreateMap<ExpenseUser, ExpenseUserDto>()
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User.Username))
