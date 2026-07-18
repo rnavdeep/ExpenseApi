@@ -500,7 +500,7 @@ namespace Expense.API.Migrations.UserDocumentsDb
             modelBuilder.Entity("Expense.API.Models.Domain.LineItem", b =>
                 {
                     b.HasOne("Expense.API.Models.Domain.DocumentJobResult", "DocumentJobResult")
-                        .WithMany()
+                        .WithMany("LineItems")
                         .HasForeignKey("DocumentJobResultId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -563,6 +563,11 @@ namespace Expense.API.Migrations.UserDocumentsDb
                     b.Navigation("Payee");
 
                     b.Navigation("Payer");
+                });
+
+            modelBuilder.Entity("Expense.API.Models.Domain.DocumentJobResult", b =>
+                {
+                    b.Navigation("LineItems");
                 });
 
             modelBuilder.Entity("Expense.API.Models.Domain.Expense", b =>

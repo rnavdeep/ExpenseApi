@@ -9,6 +9,7 @@ using Amazon.Textract.Model;
 using Azure;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
+using Expense.API.Repositories.Expense;
 using Expense.API.Repositories.Notifications;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
@@ -29,10 +30,12 @@ namespace Expense.API.Repositories.ExpenseAnalysis
         private readonly IAmazonTextract amazonTextract;
         private readonly IHubContext<TextractNotificationHub> textractNotification;
         private readonly ITextractNotification textractNotificationDb;
+        private readonly IExpenseRepository expenseRepository;
 
         public ExpenseAnalysis(IConfiguration configuration, IAmazonS3 amazonS3, IHttpContextAccessor httpContextAccessor
             , UserDocumentsDbContext userDocumentsDbContext, IAmazonTextract amazonTextract,
-                IHubContext<TextractNotificationHub> textractNotification, ITextractNotification textractNotificationDb)
+                IHubContext<TextractNotificationHub> textractNotification, ITextractNotification textractNotificationDb,
+                IExpenseRepository expenseRepository)
         {
             this.configuration = configuration;
             this.s3Client = amazonS3;
@@ -41,6 +44,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             this.amazonTextract = amazonTextract;
             this.textractNotification = textractNotification;
             this.textractNotificationDb = textractNotificationDb;
+            this.expenseRepository = expenseRepository;
         }
 
         private string? BuildColumnJson(LineItemFields lineItem)
@@ -171,6 +175,75 @@ namespace Expense.API.Repositories.ExpenseAnalysis
 
         }
 
+        /// <summary>
+        /// Persist one LineItem row per Textract-extracted line item on this document (the normalized,
+        /// assignable layer underneath ResultLineItems' raw JSON blob, which is left untouched). Each new
+        /// item's initial assignees carry forward from the expense's existing ExpenseUser rows (manual
+        /// adds, or a prior scan's assignments) or default to the document's creator when none exist yet.
+        /// </summary>
+        private async Task PersistLineItemsAsync(DocumentJobResult documentJobResult, List<ExpenseDocument> expenseDocuments)
+        {
+            var existingAssigneeIds = await userDocumentsDbContext.ExpenseUsers
+                .Where(eu => eu.ExpenseId == documentJobResult.ExpenseId)
+                .Select(eu => eu.UserId)
+                .ToListAsync();
+            var defaultAssigneeIds = existingAssigneeIds.Count > 0
+                ? existingAssigneeIds
+                : new List<Guid> { documentJobResult.CreatedById };
+
+            var sortOrder = 0;
+            foreach (var expenseDocument in expenseDocuments)
+            {
+                foreach (var lineItemGroup in expenseDocument.LineItemGroups)
+                {
+                    foreach (var lineItem in lineItemGroup.LineItems)
+                    {
+                        var rawFields = new Dictionary<string, string>();
+                        foreach (var field in lineItem.LineItemExpenseFields)
+                        {
+                            if (!string.IsNullOrEmpty(field.Type?.Text) && !string.IsNullOrEmpty(field.ValueDetection?.Text))
+                            {
+                                rawFields[field.Type.Text] = field.ValueDetection.Text;
+                            }
+                        }
+
+                        decimal? amount = null;
+                        if (rawFields.TryGetValue("PRICE", out var priceValue)
+                            && decimal.TryParse(Regex.Replace(priceValue, @"[^\d.-]", ""), out var parsedAmount))
+                        {
+                            amount = parsedAmount;
+                        }
+
+                        var newLineItem = new LineItem
+                        {
+                            Id = Guid.NewGuid(),
+                            DocumentJobResultId = documentJobResult.Id,
+                            ExpenseId = documentJobResult.ExpenseId,
+                            SortOrder = sortOrder,
+                            Description = rawFields.TryGetValue("ITEM", out var description) ? description : null,
+                            Quantity = rawFields.TryGetValue("PRODUCT_CODE", out var quantity) ? quantity : null,
+                            Amount = amount,
+                            RawFieldsJson = JsonConvert.SerializeObject(rawFields, Formatting.Indented)
+                        };
+                        await userDocumentsDbContext.LineItems.AddAsync(newLineItem);
+
+                        foreach (var assigneeId in defaultAssigneeIds)
+                        {
+                            await userDocumentsDbContext.LineItemAssignments.AddAsync(new LineItemAssignment
+                            {
+                                LineItemId = newLineItem.Id,
+                                UserId = assigneeId
+                            });
+                        }
+
+                        sortOrder++;
+                    }
+                }
+            }
+
+            await userDocumentsDbContext.SaveChangesAsync();
+        }
+
         public async Task StoreResults(GetExpenseAnalysisResponse getExpenseAnalysisResponse, DocumentJobResult documentJobResult, byte status)
         {
             documentJobResult.ResultCreatedAt = DateTime.UtcNow;
@@ -178,6 +251,7 @@ namespace Expense.API.Repositories.ExpenseAnalysis
             {
                 documentJobResult.ColumnNames = BuildColumnJson(getExpenseAnalysisResponse.ExpenseDocuments[0].LineItemGroups[0].LineItems[0]);
                 documentJobResult.ResultLineItems = BuildLineItemJson(getExpenseAnalysisResponse.ExpenseDocuments);
+                await PersistLineItemsAsync(documentJobResult, getExpenseAnalysisResponse.ExpenseDocuments);
             }
             documentJobResult.SummaryFields = BuildSummaryFieldsJson(getExpenseAnalysisResponse.ExpenseDocuments[0]);
             documentJobResult.Status = status;
@@ -189,7 +263,15 @@ namespace Expense.API.Repositories.ExpenseAnalysis
 
                 await UpdateTotal(documentJobResult.ExpenseId, summaryFieldsList);
             }
-            await UpdateExpenseUsers(documentJobResult.ExpenseId);
+
+            if (await userDocumentsDbContext.LineItems.AnyAsync(li => li.ExpenseId == documentJobResult.ExpenseId))
+            {
+                await expenseRepository.RecomputeExpenseUsersFromAssignmentsAsync(documentJobResult.ExpenseId);
+            }
+            else
+            {
+                await UpdateExpenseUsers(documentJobResult.ExpenseId);
+            }
             //await userDocumentsDbContext.DocumentJobResults.Up(result);
             await userDocumentsDbContext.SaveChangesAsync();
 

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace Expense.API.Models.Domain
 {
@@ -66,5 +67,10 @@ namespace Expense.API.Models.Domain
         /// JSON representing summaryFields from expenseDocuments
         /// </summary>
         public string? SummaryFields { get; set; }
+
+        /// <summary>
+        /// Line items extracted from this document job result.
+        /// </summary>
+        public ICollection<LineItem> LineItems { get; set; } = new List<LineItem>();
     }
 }
