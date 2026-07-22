@@ -19,7 +19,7 @@ namespace Expense.API.Data
         public DbSet<Notification> Notification { get; set; }
         public DbSet<FriendRequest> FriendRequests { get; set; }
         public DbSet<Settlement> Settlements { get; set; }
-        public DbSet<Budget> Budgets { get; set; }
+        public DbSet<Category> Categories { get; set; }
         public DbSet<LineItem> LineItems { get; set; }
         public DbSet<LineItemAssignment> LineItemAssignments { get; set; }
 
@@ -75,18 +75,18 @@ namespace Expense.API.Data
                 .HasForeignKey(s => s.PayeeId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<Budget>()
-                .Property(b => b.Category)
+            modelBuilder.Entity<Category>()
+                .Property(c => c.Name)
                 .HasMaxLength(64);
 
-            modelBuilder.Entity<Budget>()
-                .HasIndex(b => new { b.UserId, b.Category })
+            modelBuilder.Entity<Category>()
+                .HasIndex(c => new { c.UserId, c.Name })
                 .IsUnique();
 
-            modelBuilder.Entity<Budget>()
-                .HasOne(b => b.User)
+            modelBuilder.Entity<Category>()
+                .HasOne(c => c.User)
                 .WithMany()
-                .HasForeignKey(b => b.UserId)
+                .HasForeignKey(c => c.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<LineItem>()

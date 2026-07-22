@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Expense.API.Data;
 using Expense.API.Models.Domain;
 using ExpenseModel = Expense.API.Models.Domain.Expense;
-using BudgetModel = Expense.API.Models.Domain.Budget;
+using CategoryModel = Expense.API.Models.Domain.Category;
 using System;
 using Expense.API.Models.DTO;
 using Expense.API.Repositories.Notifications;
@@ -759,7 +759,7 @@ namespace Expense.API.Repositories.Expense
 
         /// <summary>
         /// Sum of the user's current-calendar-month expenses in the given category (same "Other"
-        /// bucket semantics as GetDashboardSummaryAsync/BudgetRepository), excluding one expense.
+        /// bucket semantics as GetDashboardSummaryAsync/CategoryRepository), excluding one expense.
         /// </summary>
         private async Task<decimal> GetCurrentMonthCategorySpentAsync(Guid userId, string normalizedCategory, Guid excludeExpenseId)
         {
@@ -787,10 +787,10 @@ namespace Expense.API.Repositories.Expense
             {
                 var normalizedCategory = NormalizeCategory(expense.Category);
 
-                var budget = await userDocumentsDbContext.Budgets.FirstOrDefaultAsync(
-                    b => b.UserId == expense.CreatedById && b.Category.ToLower() == normalizedCategory.ToLower());
+                var category = await userDocumentsDbContext.Categories.FirstOrDefaultAsync(
+                    c => c.UserId == expense.CreatedById && c.Name.ToLower() == normalizedCategory.ToLower());
 
-                if (budget == null || budget.MonthlyLimit <= 0)
+                if (category == null || category.MonthlyLimit <= 0)
                 {
                     return;
                 }
@@ -798,14 +798,14 @@ namespace Expense.API.Repositories.Expense
                 var spentExcludingThis = await GetCurrentMonthCategorySpentAsync(expense.CreatedById, normalizedCategory, expense.Id);
                 var spentIncludingThis = spentExcludingThis + expense.Amount;
 
-                var beforePct = (double)(spentExcludingThis / budget.MonthlyLimit) * 100.0;
-                var afterPct = (double)(spentIncludingThis / budget.MonthlyLimit) * 100.0;
+                var beforePct = (double)(spentExcludingThis / category.MonthlyLimit) * 100.0;
+                var afterPct = (double)(spentIncludingThis / category.MonthlyLimit) * 100.0;
 
                 foreach (var threshold in new[] { 80.0, 100.0 })
                 {
                     if (beforePct < threshold && afterPct >= threshold)
                     {
-                        await NotifyBudgetThresholdAsync(expense.CreatedById, budget, afterPct);
+                        await NotifyBudgetThresholdAsync(expense.CreatedById, category, afterPct);
                     }
                 }
             }
@@ -815,10 +815,10 @@ namespace Expense.API.Repositories.Expense
             }
         }
 
-        private async Task NotifyBudgetThresholdAsync(Guid userId, BudgetModel budget, double afterPct)
+        private async Task NotifyBudgetThresholdAsync(Guid userId, CategoryModel category, double afterPct)
         {
             var pctRounded = (int)Math.Round(afterPct, MidpointRounding.AwayFromZero);
-            var message = $"You've used {pctRounded}% of your ${budget.MonthlyLimit:0.##} {budget.Category} budget this month";
+            var message = $"You've used {pctRounded}% of your ${category.MonthlyLimit:0.##} {category.Name} budget this month";
 
             using (var scope = serviceProvider.CreateScope())
             {

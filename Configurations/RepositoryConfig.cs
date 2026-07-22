@@ -1,5 +1,5 @@
 ﻿using Expense.API.Repositories.AuthToken;
-using Expense.API.Repositories.Budget;
+using Expense.API.Repositories.Category;
 using Expense.API.Repositories.Documents;
 using Expense.API.Repositories.Expense;
 using Expense.API.Repositories.ExpenseAnalysis;
@@ -26,7 +26,7 @@ public static class RepositoryConfig
         services.AddScoped<ITextractNotification, TextractNotification>();
         services.AddScoped<IFriendRequestRepository, FriendRequestRespository>();
         services.AddScoped<ISettlementRepository, SettlementRepository>();
-        services.AddScoped<IBudgetRepository, BudgetRepository>();
+        services.AddScoped<ICategoryRepository, CategoryRepository>();
         services.AddScoped(typeof(QueryBuilder<>));
     }
 }

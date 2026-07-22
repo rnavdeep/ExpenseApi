@@ -32,7 +32,7 @@ public class BudgetAlertTests : IntegrationTestBase
         var alice = await RegisterAndLoginAsync("budgetalert80");
         var now = DateTime.UtcNow;
 
-        await alice.Client.PutAsJsonAsync("/api/Budget", new UpsertBudgetDto { Category = "Groceries", MonthlyLimit = 300m });
+        await alice.Client.PutAsJsonAsync("/api/Category", new UpsertCategoryDto { Name = "Groceries", MonthlyLimit = 300m });
 
         var movedExpenseId = Guid.Empty;
         await WithDbAsync(async db =>
@@ -59,7 +59,7 @@ public class BudgetAlertTests : IntegrationTestBase
         var alice = await RegisterAndLoginAsync("budgetalertlow");
         var now = DateTime.UtcNow;
 
-        await alice.Client.PutAsJsonAsync("/api/Budget", new UpsertBudgetDto { Category = "Groceries", MonthlyLimit = 300m });
+        await alice.Client.PutAsJsonAsync("/api/Category", new UpsertCategoryDto { Name = "Groceries", MonthlyLimit = 300m });
 
         var movedExpenseId = Guid.Empty;
         await WithDbAsync(async db =>
@@ -83,7 +83,7 @@ public class BudgetAlertTests : IntegrationTestBase
         var alice = await RegisterAndLoginAsync("budgetalertseq");
         var now = DateTime.UtcNow;
 
-        await alice.Client.PutAsJsonAsync("/api/Budget", new UpsertBudgetDto { Category = "Groceries", MonthlyLimit = 300m });
+        await alice.Client.PutAsJsonAsync("/api/Category", new UpsertCategoryDto { Name = "Groceries", MonthlyLimit = 300m });
 
         var firstMoveId = Guid.Empty;
         var secondMoveId = Guid.Empty;
@@ -123,7 +123,7 @@ public class BudgetAlertTests : IntegrationTestBase
         var alice = await RegisterAndLoginAsync("budgetalertmid");
         var now = DateTime.UtcNow;
 
-        await alice.Client.PutAsJsonAsync("/api/Budget", new UpsertBudgetDto { Category = "Groceries", MonthlyLimit = 300m });
+        await alice.Client.PutAsJsonAsync("/api/Category", new UpsertCategoryDto { Name = "Groceries", MonthlyLimit = 300m });
 
         var movedExpenseId = Guid.Empty;
         await WithDbAsync(async db =>
@@ -147,7 +147,7 @@ public class BudgetAlertTests : IntegrationTestBase
         var alice = await RegisterAndLoginAsync("budgetalertother");
         var now = DateTime.UtcNow;
 
-        await alice.Client.PutAsJsonAsync("/api/Budget", new UpsertBudgetDto { Category = "Other", MonthlyLimit = 100m });
+        await alice.Client.PutAsJsonAsync("/api/Category", new UpsertCategoryDto { Name = "Other", MonthlyLimit = 100m });
 
         var movedExpenseId = Guid.Empty;
         await WithDbAsync(async db =>
